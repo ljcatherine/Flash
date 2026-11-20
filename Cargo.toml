@@ -1,0 +1,16 @@
+[package]
+name = "flash"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.31"
+
+# The bin embeds a requireAdministrator manifest, so its (empty) test harness can't start unelevated.
+[[bin]]
+name = "flash"
+path = "src/main.rs"
+test = false
+
+[build-dependencies]
+winresource = "0.1"
