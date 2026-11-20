@@ -7,6 +7,7 @@ pub mod monitor;
 pub mod storage;
 pub mod whea;
 pub mod inf;
+pub mod app_update;
 
 use std::collections::HashMap;
 use std::os::windows::process::CommandExt;

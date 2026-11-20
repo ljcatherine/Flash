@@ -5,6 +5,7 @@ use eframe::egui::{self, Align, Align2, Color32, CornerRadius, FontId, Id, Layou
 use egui_extras::{Column, TableBuilder};
 mod gpu_bench;
 mod system_ui;
+mod app_update_ui;
 
 use flash::{Device, PURPOSES, Shared, Source, Update, backup, check_folder, install, problem_text, purpose, scan};
 use std::collections::{HashMap, HashSet};
@@ -69,6 +70,7 @@ struct App {
     was_busy: bool,
     toast: Option<(String, f64)>,
     sys: system_ui::SysUi,
+    app_update: app_update_ui::AppUpdateUi,
     verbose: bool, // sidebar status expanded into live details
 }
 
@@ -461,6 +463,7 @@ fn style(ctx: &egui::Context) {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.sys.gpu_tick(frame.gl(), ctx);
+        self.app_update.poll();
         let data = self.data.clone();
         let mut d = data.lock().unwrap();
         let now = ctx.input(|i| i.time);
@@ -533,6 +536,7 @@ impl eframe::App for App {
                 }
                 ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
                     ui.spacing_mut().item_spacing.y = 8.0;
+                    self.app_update.sidebar(ui);
                     let label = if d.busy { "Scanning..." } else { "Scan for updates" };
                     if ui.add_enabled(!d.busy, primary(label).min_size(vec2(ui.available_width(), 34.0))).clicked() {
                         actions.push(Action::Scan);
@@ -1110,6 +1114,8 @@ impl eframe::App for App {
                 Action::Backup => self.run(ctx, backup),
             }
         }
+        let busy = self.data.lock().unwrap().busy || self.sys.update_blocked();
+        self.app_update.dialog(ctx, busy);
     }
 }
 
@@ -1144,6 +1150,7 @@ fn main() -> eframe::Result {
                 was_busy: false,
                 toast: None,
                 sys: system_ui::SysUi::new(),
+                app_update: app_update_ui::AppUpdateUi::new(&cc.egui_ctx),
                 verbose: false,
             };
             app.run(&cc.egui_ctx, scan); // scan right away on launch

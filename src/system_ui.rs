@@ -142,6 +142,11 @@ impl SysUi {
         self.mon.lock().unwrap().running
     }
 
+    pub fn update_blocked(&self) -> bool {
+        let sys = self.sys.lock().unwrap();
+        sys.bench_running.is_some() || sys.cleaning.is_some()
+    }
+
     fn spawn(&self, ctx: &egui::Context, f: impl FnOnce(&Shared, &egui::Context) + Send + 'static) {
         let (s, c) = (self.sys.clone(), ctx.clone());
         std::thread::spawn(move || {

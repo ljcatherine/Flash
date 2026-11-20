@@ -26,6 +26,7 @@
       <Component Id="StartMenuShortcut">
         <Shortcut Id="FlashShortcut" Name="Flash" Description="Driver updates and PC health" Target="[INSTALLFOLDER]Flash.exe" WorkingDirectory="INSTALLFOLDER" Icon="FlashIcon" />
         <RegistryValue Root="HKLM" Key="Software\Flash" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\Flash" Name="InstalledExe" Type="string" Value="[INSTALLFOLDER]Flash.exe" />
       </Component>
     </StandardDirectory>
   </Package>

@@ -12,7 +12,7 @@ A Windows driver updater and PC health tool in Rust: drivers from four sources, 
 [![egui](https://img.shields.io/badge/UI-egui%200.31-0B1430?style=flat-square&labelColor=070C18)](src/main.rs)
 [![Sources](https://img.shields.io/badge/sources-4-0B1430?style=flat-square&labelColor=070C18)](#update-sources)
 [![Tools](https://img.shields.io/badge/tools-health%20%C2%B7%20bench%20%C2%B7%20clean%20%C2%B7%20monitor-0B1430?style=flat-square&labelColor=070C18)](#system-tools)
-[![Release 1.0.0](https://img.shields.io/badge/release-1.0.0-0B1430?style=flat-square&labelColor=070C18)](https://github.com/ljcatherine/Flash/releases/latest)
+[![Release 1.0.1](https://img.shields.io/badge/release-1.0.1-0B1430?style=flat-square&labelColor=070C18)](https://github.com/ljcatherine/Flash/releases/latest)
 [![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0B1430?style=flat-square&labelColor=070C18)](LICENSE)
 
 [**flash.liamjc.dev**](https://flash.liamjc.dev) ·
@@ -30,6 +30,12 @@ A Windows driver updater and PC health tool in Rust: drivers from four sources, 
 ---
 
 ## What it does
+
+Flash checks GitHub for new stable app releases at startup. Open **App updates**
+in the sidebar to check again or see an available version. Flash verifies the
+download against GitHub’s published SHA-256 digest before you choose to install.
+The MSI build upgrades through Windows Installer. The portable build replaces its
+executable in place. Open Flash again when the update finishes.
 
 <table>
 <tr>
@@ -271,5 +277,5 @@ same license with its source available.
 </details>
 
 <div align="center">
-<sub>Flash 1.0.0 · built locally, released on GitHub</sub>
+<sub>Flash 1.0.1 · built locally, released on GitHub</sub>
 </div>
