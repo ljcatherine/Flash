@@ -1,0 +1,28 @@
+<!-- Flash MSI. Built by scripts\release.ps1: wix build -d Version=... -d Exe=... -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!-- UpgradeCode must never change: it lets newer MSIs replace older installs. -->
+  <Package Name="Flash" Manufacturer="ljcatherine" Version="$(Version)" UpgradeCode="dd379170-e86b-4834-b79a-ab53fc1c090c" Scope="perMachine" Compressed="yes">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Flash is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Paths resolve from the working directory: release.ps1 runs from the repo root. -->
+    <Icon Id="FlashIcon" SourceFile="assets\flash.ico" />
+    <Property Id="ARPPRODUCTICON" Value="FlashIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/ljcatherine/Flash" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Flash">
+        <Component>
+          <File Id="FlashExe" Source="$(Exe)" Name="Flash.exe" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut Id="FlashShortcut" Name="Flash" Description="Driver updates and PC health" Target="[INSTALLFOLDER]Flash.exe" WorkingDirectory="INSTALLFOLDER" Icon="FlashIcon" />
+        <RegistryValue Root="HKLM" Key="Software\Flash" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Package>
+</Wix>
