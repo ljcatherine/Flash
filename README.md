@@ -15,6 +15,7 @@ A Windows driver updater and PC health tool in Rust: drivers from four sources, 
 [![Release 1.0.0](https://img.shields.io/badge/release-1.0.0-0B1430?style=flat-square&labelColor=070C18)](https://github.com/ljcatherine/Flash/releases/latest)
 [![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0B1430?style=flat-square&labelColor=070C18)](LICENSE)
 
+[**flash.liamjc.dev**](https://flash.liamjc.dev) ·
 [**Download**](https://github.com/ljcatherine/Flash/releases/latest) ·
 [What it does](#what-it-does) ·
 [System tools](#system-tools) ·
@@ -263,6 +264,7 @@ same license with its source available.
 | [`build.rs`](build.rs) | Embeds the `requireAdministrator` manifest and the app icon |
 | [`scripts/release.ps1`](scripts/release.ps1) | Builds the release and packages the exe, portable zip and MSI |
 | [`packaging/flash.wxs`](packaging/flash.wxs) | WiX source for the MSI installer |
+| [`site/`](site) | The [flash.liamjc.dev](https://flash.liamjc.dev) website: static HTML, CSS and JS on Cloudflare Workers (`cd site && npx wrangler deploy`) |
 | [`LICENSE`](LICENSE) | GPL-3.0 license text, also shipped in the zip and installed with the MSI |
 | [`assets/`](assets) | App icon as SVG, PNG and ICO |
 

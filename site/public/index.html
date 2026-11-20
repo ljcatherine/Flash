@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Flash · drivers and PC health for Windows</title>
+  <meta name="description" content="Flash is a free, open-source Windows driver updater and PC health tool: drivers from four sources, hardware error explanations with fixes, benchmarks, cleanup and a live system monitor.">
+  <meta name="theme-color" content="#070c18">
+  <meta property="og:title" content="Flash · drivers and PC health for Windows">
+  <meta property="og:description" content="Every device, every driver, up to date. Free and open source.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/main.js" defer></script>
+</head>
+<body>
+  <div class="sky" aria-hidden="true"></div>
+
+  <header class="nav">
+    <a class="brand" href="#top" aria-label="Flash, back to top">
+      <svg class="brand-mark" viewBox="0 0 256 256" aria-hidden="true"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient></defs><rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bm)"/><path d="M146 28 L68 140 H120 L104 228 L188 108 H134 Z" fill="#fff"/></svg>
+      Flash
+    </a>
+    <nav aria-label="Sections">
+      <a href="#drivers">Drivers</a>
+      <a href="#health">Health</a>
+      <a href="#tools">Tools</a>
+      <a href="#how">How it works</a>
+      <a class="nav-cta" href="#download">Download</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Flash for Windows</p>
+        <h1>Every device.<br><span class="grad">Every driver.</span></h1>
+        <p class="lede">Flash finds newer drivers from four sources, explains why your PC crashed and how to fix it, benchmarks your hardware and clears out what Windows leaves behind. Free and open source.</p>
+        <p class="pill"><span class="dot"></span>Version 1.0.0 out now</p>
+        <div class="cta">
+          <a class="btn primary" href="#download">Download for Windows</a>
+          <a class="btn" href="https://github.com/ljcatherine/Flash" rel="noopener">View on GitHub</a>
+        </div>
+      </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <!-- Wide viewBox so orbiting labels never leave the graphic, even on phones. -->
+        <svg class="orbit" viewBox="-40 0 560 440">
+          <defs>
+            <radialGradient id="halo"><stop offset="0" stop-color="#3b82f6" stop-opacity=".45"/><stop offset="1" stop-color="#3b82f6" stop-opacity="0"/></radialGradient>
+            <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient>
+            <path id="ring" d="M40 220 A180 72 -18 1 1 400 220 A180 72 -18 1 1 40 220 Z"/>
+          </defs>
+          <circle cx="220" cy="220" r="170" fill="url(#halo)"/>
+          <use href="#ring" class="ring"/>
+          <path class="ring ring-2" d="M70 220 A150 150 0 1 1 370 220 A150 150 0 1 1 70 220 Z"/>
+          <g transform="translate(160 160)">
+            <rect width="120" height="120" rx="28" fill="url(#tile)"/>
+            <path d="M68.4 13.1 L31.9 65.6 H56.3 L48.8 106.9 L88.1 50.6 H62.8 Z" fill="#fff"/>
+          </g>
+          <g class="sat"><circle r="9" fill="#9cbcff"/><text x="14" y="4">Windows Update</text><animateMotion dur="24s" repeatCount="indefinite" begin="0s"><mpath href="#ring"/></animateMotion></g>
+          <g class="sat"><circle r="9" fill="#c9adff"/><text x="14" y="4">Update Catalog</text><animateMotion dur="24s" repeatCount="indefinite" begin="-6s"><mpath href="#ring"/></animateMotion></g>
+          <g class="sat"><circle r="9" fill="#7ce8ca"/><text x="14" y="4">Driver Store</text><animateMotion dur="24s" repeatCount="indefinite" begin="-12s"><mpath href="#ring"/></animateMotion></g>
+          <g class="sat"><circle r="9" fill="#f1c07e"/><text x="14" y="4">Local folder</text><animateMotion dur="24s" repeatCount="indefinite" begin="-18s"><mpath href="#ring"/></animateMotion></g>
+        </svg>
+      </div>
+    </section>
+
+    <!-- Drivers -->
+    <section id="drivers" class="split reveal">
+      <div class="split-copy">
+        <p class="eyebrow">Drivers · four sources</p>
+        <h2>Four places to look.<br>One list to tick.</h2>
+        <p>Windows Update only offers part of the picture. Flash also searches the Microsoft Update Catalog by each device's hardware ID, checks the driver packages already on your PC, and reads any folder you point it at, all at the same time.</p>
+        <ul class="ticks">
+          <li>Installed and available versions side by side, with where each came from</li>
+          <li>Restore point first, then each driver through the right channel</li>
+          <li>Rescans afterwards and tells you what actually changed</li>
+        </ul>
+      </div>
+      <figure class="window" aria-label="Flash's Updates page">
+        <div class="window-bar"><span></span><span></span><span></span><b>Flash · Updates</b></div>
+        <div class="window-body">
+          <div class="table-head"><span></span><span>Device</span><span>Installed</span><span>Available</span><span>Source</span></div>
+          <div class="table-row"><i class="box on"></i><span>AMD SMBus</span><code>5.12.0.31</code><code class="new">5.12.0.38</code><span class="src">Windows Update</span></div>
+          <div class="table-row"><i class="box on"></i><span>Voice Clarity</span><code>1.0.4.7057</code><code class="new">1.0.4.55794</code><span class="src">Windows Update</span></div>
+          <div class="table-row"><i class="box"></i><span>Platform Security Processor <em>vendor driver</em></span><code>10.0.26100</code><code class="new">5.46.0.0</code><span class="src">Update Catalog</span></div>
+          <div class="table-row"><i class="box"></i><span>USB Composite Device <em>vendor driver</em></span><code>10.0.26100</code><code class="new">1.3.17.169</code><span class="src">Update Catalog</span></div>
+          <div class="window-foot"><span>2 selected · restore point on</span><b class="mini-btn">Install 2 selected</b></div>
+        </div>
+      </figure>
+    </section>
+
+    <section class="safety reveal">
+      <p class="eyebrow">Safe by default</p>
+      <h2>Careful about what it installs.</h2>
+      <div class="safety-grid">
+        <div><b>No downgrades</b><p>From the same maker, an update has to be a higher version. A newer date on an older version isn't an upgrade.</p></div>
+        <div><b>Your hardware, exactly</b><p>Catalog packages are matched by chip, so Flash opens each one and checks it lists your exact hardware IDs before adding anything.</p></div>
+        <div><b>Opt-in swaps</b><p>A maker's driver that would replace one built into Windows is marked and left unticked, so you choose it on purpose.</p></div>
+        <div><b>Easy way back</b><p>A restore point before every install, a one-click backup of every third-party driver, and System Restore a button away.</p></div>
+      </div>
+    </section>
+
+    <!-- Health -->
+    <section id="health" class="split flip reveal">
+      <div class="split-copy">
+        <p class="eyebrow">Device health</p>
+        <h2>Knows why your PC crashed.</h2>
+        <p>Windows logs hardware errors (WHEA) in a format almost nobody can read. Flash groups them, names the part involved and explains each one from a built-in knowledge base, with fixes in order, tuned for AMD or Intel.</p>
+        <ul class="ticks">
+          <li>Every CPU machine-check type, memory, PCI Express, NMI and more</li>
+          <li>Spots memory running below its rated speed (XMP or EXPO off)</li>
+          <li>Drive temperature, wear and errors, battery capacity, crash history</li>
+        </ul>
+      </div>
+      <figure class="term" aria-label="An example of Flash explaining hardware errors">
+        <div class="term-bar">hardware error log · last 90 days</div>
+        <ol class="term-lines">
+          <li class="bad">✕ Memory error · fatal · 23 times</li>
+          <li class="dim">  memory runs at its default speed → a failing module or slot is most likely</li>
+          <li class="fix">  fix 1 › run Windows Memory Diagnostic, then test one stick at a time</li>
+          <li class="bad">✕ CPU interconnect error (Infinity Fabric) · fatal · 4 times</li>
+          <li class="dim">  every one on CPU thread 0 → one core is less stable than the rest</li>
+          <li class="fix">  fix 1 › update the BIOS (AGESA)</li>
+          <li class="fix">  fix 2 › Power Supply Idle Control → Typical Current Idle</li>
+          <li class="warn">◷ memory rated DDR4-3200, running at 2133 · turn on DOCP</li>
+        </ol>
+      </figure>
+    </section>
+
+    <!-- Tools -->
+    <section id="tools" class="tools reveal">
+      <p class="eyebrow">Everything else</p>
+      <h2>Four more tools in one window.</h2>
+      <div class="tool-grid">
+        <article class="glass"><span class="chip">Health map</span><h3>See what needs attention at a glance</h3><p>A mind map of the PC: a branch for every kind of device, coloured by its worst status, with the devices that need you on the leaves. Click any of them to open it.</p></article>
+        <article class="glass"><span class="chip">Benchmarks</span><h3>CPU, GPU, memory and disk</h3><p>One core and all cores, GPU shader compute and fill rate, memory bandwidth, and disk speed straight from the drive, each with a plain rating.</p></article>
+        <article class="glass"><span class="chip">Storage &amp; cleanup</span><h3>Find the space, free the space</h3><p>What's filling each drive, your largest files, and a cleaner for temp files, caches, old driver versions and preinstalled apps. Nothing goes until you confirm.</p></article>
+        <article class="glass"><span class="chip">System monitor</span><h3>What's using your PC while you play</h3><p>Start it, switch to your game, and watch CPU, memory, GPU, disk and network live, with the apps responsible, peaks and per-thread load.</p></article>
+      </div>
+    </section>
+
+    <section class="bench reveal" aria-labelledby="bench-h">
+      <div class="bench-copy">
+        <p class="eyebrow">Benchmarks</p>
+        <h2 id="bench-h">Know what your hardware can do.</h2>
+        <p>Measured on a Ryzen 5 5600 with an RTX 2060. Bars compare against a fast current PC.</p>
+      </div>
+      <ul class="bars">
+        <li><span>CPU, one core</span><b>492 M ops/s</b><i class="bar" data-value="492" data-ref="650"></i></li>
+        <li><span>CPU, all cores</span><b>5,489 M ops/s</b><i class="bar" data-value="5489" data-ref="10000"></i></li>
+        <li><span>Memory bandwidth</span><b>14.0 GB/s</b><i class="bar" data-value="14" data-ref="30"></i></li>
+        <li><span>GPU shader compute</span><b>7,011 GFLOPS</b><i class="bar" data-value="7011" data-ref="18000"></i></li>
+        <li><span>GPU fill rate</span><b>68.7 Gpixels/s</b><i class="bar" data-value="68.7" data-ref="150"></i></li>
+      </ul>
+    </section>
+
+    <!-- How it works -->
+    <section id="how" class="how reveal">
+      <p class="eyebrow">How it works</p>
+      <h2>Scan, check, verify, install, confirm.</h2>
+      <ol class="steps">
+        <li><span>01</span><b>Scan</b><p>Reads every device, its driver and hardware IDs through WMI.</p></li>
+        <li><span>02</span><b>Check</b><p>Asks all four sources at once, in parallel.</p></li>
+        <li><span>03</span><b>Verify</b><p>Drops downgrades and packages that don't list your exact hardware.</p></li>
+        <li><span>04</span><b>Install</b><p>Restore point, then the Windows Update Agent or pnputil.</p></li>
+        <li><span>05</span><b>Confirm</b><p>Rescans and reports which drivers really changed.</p></li>
+      </ol>
+      <p class="note">Online drivers only ever come from Microsoft: Windows Update, or Catalog downloads from Microsoft's own servers. No third-party driver sites.</p>
+    </section>
+
+    <!-- Download -->
+    <section id="download" class="download reveal">
+      <p class="eyebrow">Download · version 1.0.0</p>
+      <h2>Get Flash.</h2>
+      <p class="sub">Windows 10 and 11, 64-bit. Flash asks for administrator rights when it starts, because installing drivers needs them.</p>
+      <div class="dl-grid">
+        <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.0.0/Flash-1.0.0-x64.msi" rel="noopener"><span class="chip">Recommended</span><b>Installer</b><p>Start menu entry and an uninstaller.</p><code>Flash-1.0.0-x64.msi · 3.2 MB</code></a>
+        <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.0.0/Flash-1.0.0-x64-portable.zip" rel="noopener"><span class="chip">No install</span><b>Portable</b><p>Run it from any folder or USB stick.</p><code>Flash-1.0.0-x64-portable.zip · 3.7 MB</code></a>
+        <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.0.0/Flash-1.0.0-x64.exe" rel="noopener"><span class="chip">Just the app</span><b>Executable</b><p>The single exe, nothing else.</p><code>Flash-1.0.0-x64.exe · 8.3 MB</code></a>
+      </div>
+      <p class="note">Builds aren't code-signed yet, so Windows SmartScreen may warn the first time (More info, then Run anyway). Check downloads against <a href="https://github.com/ljcatherine/Flash/releases/download/v1.0.0/SHA256SUMS.txt" rel="noopener">SHA256SUMS.txt</a>.</p>
+    </section>
+
+    <section class="oss reveal">
+      <div>
+        <p class="eyebrow">Open source</p>
+        <h2>Free, and yours to read.</h2>
+        <p>Flash is written in Rust and released under the GPL-3.0. Read the code, build it yourself, or help make it better.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/ljcatherine/Flash" rel="noopener">ljcatherine/Flash on GitHub</a>
+          <a class="btn" href="https://github.com/ljcatherine/Flash/releases" rel="noopener">All releases</a>
+        </div>
+      </div>
+      <ul class="stack"><li>Rust</li><li>egui</li><li>sysinfo</li><li>OpenGL</li><li>WiX</li><li>GPL-3.0</li></ul>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Flash · made by <a href="https://liamjc.dev">Liam</a></span>
+    <span><a href="https://github.com/ljcatherine/Flash" rel="noopener">GitHub</a> · <a href="https://github.com/ljcatherine/Flash/blob/master/LICENSE" rel="noopener">GPL-3.0</a></span>
+  </footer>
+</body>
+</html>
