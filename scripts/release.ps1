@@ -81,9 +81,11 @@ Remove-Item (Join-Path $dist '*.wixpdb') -ErrorAction SilentlyContinue
 Sign $msi
 
 # 4. Checksums last, over the final (signed) files
-Get-ChildItem $dist -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
+# LF line endings so `sha256sum -c` works on Linux and macOS too.
+$sums = Get-ChildItem $dist -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
   '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
-} | Set-Content (Join-Path $dist 'SHA256SUMS.txt') -Encoding ascii
+}
+[IO.File]::WriteAllText((Join-Path $dist 'SHA256SUMS.txt'), (($sums -join "`n") + "`n"))
 
 Get-ChildItem $dist | Format-Table Name, Length
 if ($signArgs) { Write-Host 'Signed and verified.' } else { Write-Warning 'Packages are UNSIGNED.' }
