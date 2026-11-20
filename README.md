@@ -224,23 +224,6 @@ Releases are built and packaged locally. The MSI needs the [WiX Toolset](https:/
 powershell -ExecutionPolicy Bypass -File scripts\release.ps1   # dist\: .exe, portable .zip, .msi, SHA256SUMS.txt
 ```
 
-### Signing releases
-
-The script signs the exe, builds the zip and MSI from the signed exe, signs the MSI, verifies
-both signatures and only then writes the checksums. It's configured with environment variables,
-so no secrets live in the repo:
-
-| Method | Set |
-|---|---|
-| [Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/) | `FLASH_SIGN_DLIB` = path to `Azure.CodeSigning.Dlib.dll`, `FLASH_SIGN_METADATA` = path to your `metadata.json` (endpoint, account, certificate profile) |
-| A code signing certificate (USB key or certificate store) | `FLASH_SIGN_THUMBPRINT` = the certificate's SHA-1 thumbprint |
-
-Nothing set means an unsigned build with a warning. Add `-RequireSigning` for official
-releases so a missing signature fails the build instead.
-
-The app icon is drawn as SVG in [`assets/flash.svg`](assets/flash.svg) and
-rendered to [`flash.png`](assets/flash.png) (window icon) and a multi-size [`flash.ico`](assets/flash.ico) (Explorer and taskbar).
-
 ## Safety
 
 > [!IMPORTANT]
