@@ -13,6 +13,7 @@ A Windows driver updater and PC health tool in Rust: drivers from four sources, 
 [![Sources](https://img.shields.io/badge/sources-4-0B1430?style=flat-square&labelColor=070C18)](#update-sources)
 [![Tools](https://img.shields.io/badge/tools-health%20%C2%B7%20bench%20%C2%B7%20clean%20%C2%B7%20monitor-0B1430?style=flat-square&labelColor=070C18)](#system-tools)
 [![Release 1.0.0](https://img.shields.io/badge/release-1.0.0-0B1430?style=flat-square&labelColor=070C18)](https://github.com/ljcatherine/Flash/releases/latest)
+[![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0B1430?style=flat-square&labelColor=070C18)](LICENSE)
 
 [**Download**](https://github.com/ljcatherine/Flash/releases/latest) ·
 [What it does](#what-it-does) ·
@@ -223,6 +224,20 @@ Releases are built and packaged locally. The MSI needs the [WiX Toolset](https:/
 powershell -ExecutionPolicy Bypass -File scripts\release.ps1   # dist\: .exe, portable .zip, .msi, SHA256SUMS.txt
 ```
 
+### Signing releases
+
+The script signs the exe, builds the zip and MSI from the signed exe, signs the MSI, verifies
+both signatures and only then writes the checksums. It's configured with environment variables,
+so no secrets live in the repo:
+
+| Method | Set |
+|---|---|
+| [Azure Trusted Signing](https://learn.microsoft.com/azure/trusted-signing/) | `FLASH_SIGN_DLIB` = path to `Azure.CodeSigning.Dlib.dll`, `FLASH_SIGN_METADATA` = path to your `metadata.json` (endpoint, account, certificate profile) |
+| A code signing certificate (USB key or certificate store) | `FLASH_SIGN_THUMBPRINT` = the certificate's SHA-1 thumbprint |
+
+Nothing set means an unsigned build with a warning. Add `-RequireSigning` for official
+releases so a missing signature fails the build instead.
+
 The app icon is drawn as SVG in [`assets/flash.svg`](assets/flash.svg) and
 rendered to [`flash.png`](assets/flash.png) (window icon) and a multi-size [`flash.ico`](assets/flash.ico) (Explorer and taskbar).
 
@@ -237,6 +252,12 @@ rendered to [`flash.png`](assets/flash.png) (window icon) and a multi-size [`fla
 - Windows Update drivers may come with a license agreement; Flash accepts it as part of installing.
 - A restore point needs System Protection turned on for drive C:, and Windows allows one about every 24 hours. If it can't make one, the Activity page says why.
 - Catalog searches match the chip, not the PC model, so a package can be built for another maker's machines. Flash checks the downloaded INFs against the device's exact hardware IDs and skips packages that don't list them, then reports whether each driver actually changed.
+
+## License
+
+Flash is free software under the [GNU General Public License v3.0 or later](LICENSE). You can
+use, study, share and change it; if you distribute a modified version, it has to stay under the
+same license with its source available.
 
 ## Project layout
 
@@ -259,6 +280,7 @@ rendered to [`flash.png`](assets/flash.png) (window icon) and a multi-size [`fla
 | [`build.rs`](build.rs) | Embeds the `requireAdministrator` manifest and the app icon |
 | [`scripts/release.ps1`](scripts/release.ps1) | Builds the release and packages the exe, portable zip and MSI |
 | [`packaging/flash.wxs`](packaging/flash.wxs) | WiX source for the MSI installer |
+| [`LICENSE`](LICENSE) | GPL-3.0 license text, also shipped in the zip and installed with the MSI |
 | [`assets/`](assets) | App icon as SVG, PNG and ICO |
 
 </details>

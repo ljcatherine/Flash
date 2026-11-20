@@ -15,6 +15,10 @@
         <Component>
           <File Id="FlashExe" Source="$(Exe)" Name="Flash.exe" KeyPath="yes" />
         </Component>
+        <Component>
+          <!-- GPL-3.0 asks that the license travel with the program. -->
+          <File Id="License" Source="LICENSE" Name="LICENSE.txt" KeyPath="yes" />
+        </Component>
       </Directory>
     </StandardDirectory>
 

@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2024"
 description = "Flash: Windows driver updater and PC health tool"
 repository = "https://github.com/ljcatherine/Flash"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 eframe = "0.31"
