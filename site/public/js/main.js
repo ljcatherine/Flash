@@ -2,10 +2,6 @@
 document.documentElement.classList.add('js');
 
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-if (reduce) {
-  // SMIL orbits ignore CSS, so pause them directly.
-  document.querySelectorAll('svg.orbit').forEach((s) => s.pauseAnimations());
-}
 
 // Bar width = result / reference, set as a custom property (allowed under the CSP, unlike inline styles).
 document.querySelectorAll('.bar').forEach((bar) => {

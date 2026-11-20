@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Flash · drivers and PC health for Windows</title>
   <meta name="description" content="Flash is a free, open-source Windows driver updater and PC health tool: drivers from four sources, hardware error explanations with fixes, benchmarks, cleanup and a live system monitor.">
-  <meta name="theme-color" content="#070c18">
+  <meta name="theme-color" content="#04080f">
   <meta property="og:title" content="Flash · drivers and PC health for Windows">
   <meta property="og:description" content="Every device, every driver, up to date. Free and open source.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/main.js" defer></script>
 </head>
 <body>
-  <div class="sky" aria-hidden="true"></div>
+  <div class="circuit" aria-hidden="true"></div>
 
   <header class="nav">
     <a class="brand" href="#top" aria-label="Flash, back to top">
@@ -39,7 +39,7 @@
         <p class="eyebrow">Flash for Windows</p>
         <h1>Every device.<br><span class="grad">Every driver.</span></h1>
         <p class="lede">Flash finds newer drivers from four sources, explains why your PC crashed and how to fix it, benchmarks your hardware and clears out what Windows leaves behind. Free and open source.</p>
-        <p class="pill"><span class="dot"></span>Version 1.0.0 out now</p>
+        <p class="pill"><span class="dot"></span>Version 1.0.0 for Windows · Linux in the works</p>
         <div class="cta">
           <a class="btn primary" href="#download">Download for Windows</a>
           <a class="btn" href="https://github.com/ljcatherine/Flash" rel="noopener">View on GitHub</a>
@@ -47,25 +47,25 @@
       </div>
 
       <div class="hero-art" aria-hidden="true">
-        <!-- Wide viewBox so orbiting labels never leave the graphic, even on phones. -->
-        <svg class="orbit" viewBox="-40 0 560 440">
-          <defs>
-            <radialGradient id="halo"><stop offset="0" stop-color="#3b82f6" stop-opacity=".45"/><stop offset="1" stop-color="#3b82f6" stop-opacity="0"/></radialGradient>
-            <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient>
-            <path id="ring" d="M40 220 A180 72 -18 1 1 400 220 A180 72 -18 1 1 40 220 Z"/>
-          </defs>
-          <circle cx="220" cy="220" r="170" fill="url(#halo)"/>
-          <use href="#ring" class="ring"/>
-          <path class="ring ring-2" d="M70 220 A150 150 0 1 1 370 220 A150 150 0 1 1 70 220 Z"/>
-          <g transform="translate(160 160)">
-            <rect width="120" height="120" rx="28" fill="url(#tile)"/>
-            <path d="M68.4 13.1 L31.9 65.6 H56.3 L48.8 106.9 L88.1 50.6 H62.8 Z" fill="#fff"/>
-          </g>
-          <g class="sat"><circle r="9" fill="#9cbcff"/><text x="14" y="4">Windows Update</text><animateMotion dur="24s" repeatCount="indefinite" begin="0s"><mpath href="#ring"/></animateMotion></g>
-          <g class="sat"><circle r="9" fill="#c9adff"/><text x="14" y="4">Update Catalog</text><animateMotion dur="24s" repeatCount="indefinite" begin="-6s"><mpath href="#ring"/></animateMotion></g>
-          <g class="sat"><circle r="9" fill="#7ce8ca"/><text x="14" y="4">Driver Store</text><animateMotion dur="24s" repeatCount="indefinite" begin="-12s"><mpath href="#ring"/></animateMotion></g>
-          <g class="sat"><circle r="9" fill="#f1c07e"/><text x="14" y="4">Local folder</text><animateMotion dur="24s" repeatCount="indefinite" begin="-18s"><mpath href="#ring"/></animateMotion></g>
-        </svg>
+        <div class="board">
+          <div class="board-bar"><svg class="bolt-ico" viewBox="0 0 256 256"><path d="M146 28 L68 140 H120 L104 228 L188 108 H134 Z"/></svg>Scanning devices<span class="count">241 found</span></div>
+          <div class="devs">
+            <div class="dev c0"><b>Graphics</b><span>RTX 2060</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c1"><b>Processor</b><span>Ryzen 5 5600</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c2"><b>Chipset</b><span>AMD B550</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c3"><b>Storage</b><span>990 PRO</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c0"><b>Audio</b><span>Realtek HD</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c1"><b>Wi-Fi</b><span>MT7921</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c2"><b>Bluetooth</b><span>MediaTek</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c3"><b>Storage</b><span>Crucial P2</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c0"><b>Display</b><span>Dell E2422HS</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c1"><b>Security</b><span>AMD PSP</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c2"><b>USB</b><span>Composite</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="dev c3"><b>Input</b><span>HID keyboard</span><i class="st"><em class="old">update</em><em class="new">current</em></i></div>
+            <div class="beam"><svg viewBox="0 0 256 256"><path d="M146 28 L68 140 H120 L104 228 L188 108 H134 Z"/></svg></div>
+          </div>
+          <div class="board-foot"><span>4 sources</span><span>0 downgrades</span><span>restore point on</span></div>
+        </div>
       </div>
     </section>
 
@@ -177,7 +177,7 @@
     <section id="download" class="download reveal">
       <p class="eyebrow">Download · version 1.0.0</p>
       <h2>Get Flash.</h2>
-      <p class="sub">Windows 10 and 11, 64-bit. Flash asks for administrator rights when it starts, because installing drivers needs them.</p>
+      <p class="sub">Windows 10 and 11, 64-bit. Flash asks for administrator rights when it starts, because installing drivers needs them. A Linux version is in the works.</p>
       <div class="dl-grid">
         <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.0.0/Flash-1.0.0-x64.msi" rel="noopener"><span class="chip">Recommended</span><b>Installer</b><p>Start menu entry and an uninstaller.</p><code>Flash-1.0.0-x64.msi · 3.2 MB</code></a>
         <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.0.0/Flash-1.0.0-x64-portable.zip" rel="noopener"><span class="chip">No install</span><b>Portable</b><p>Run it from any folder or USB stick.</p><code>Flash-1.0.0-x64-portable.zip · 3.7 MB</code></a>
