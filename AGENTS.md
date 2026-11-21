@@ -5,15 +5,16 @@ in `src/`, with everything OS-specific in `src/platform/` (`windows.rs`, `linux/
 the same functions, so a feature missing on one platform is a build error. The Linux polkit helper
 is the `helper/` crate. Packaging: `scripts/release.ps1` and `packaging/flash.wxs` (Windows),
 `scripts/release.sh`, `scripts/linux/` and `packaging/linux/` (Linux), `flake.nix` and `nix/` (Nix).
-The project website is in `site/`.
+The project website lives in a local `site/` folder that isn't committed (`/site` is in
+`.gitignore`): edit and deploy it from there.
 
 ## Every public release: update the version on the websites
 
 Whenever a new version is published on GitHub Releases, the current release version must also
 be updated on both websites, in the same piece of work, before calling the release done.
 
-1. **flash.liamjc.dev** (`site/public/index.html` in this repo)
-   - Hero pill: `Version X.Y.Z for Windows ...`
+1. **flash.liamjc.dev** (`site/public/index.html`, local and untracked)
+   - Hero pill: `Version X.Y.Z · ...`
    - Download section eyebrow: `Download · version X.Y.Z`
    - The three download links (`/releases/download/vX.Y.Z/Flash-X.Y.Z-x64.msi`, `-portable.zip`, `.exe`),
      their file names and sizes, and the `SHA256SUMS.txt` link

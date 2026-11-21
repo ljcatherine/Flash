@@ -363,7 +363,6 @@ same license with its source available.
 | [`packaging/linux/`](packaging/linux) | polkit policy and desktop entry |
 | [`flake.nix`](flake.nix), [`nix/`](nix) | Nix package and NixOS module |
 | [`tests/fixtures/linux/`](tests/fixtures/linux) | Real captured output the Linux parser tests run against |
-| [`site/`](site) | The [flash.liamjc.dev](https://flash.liamjc.dev) website: static HTML, CSS and JS on Cloudflare Workers (`cd site && npx wrangler deploy`) |
 | [`LICENSE`](LICENSE) | GPL-3.0 license text, also shipped in the zip and installed with the MSI |
 | [`assets/`](assets) | App icon as SVG, PNG and ICO |
 
