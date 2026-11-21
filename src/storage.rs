@@ -235,7 +235,8 @@ pub fn old_drivers(rows: &[Vec<String>]) -> Vec<(String, PathBuf, String)> {
     use std::collections::HashMap;
     let mut groups: HashMap<(String, String), Vec<&Vec<String>>> = HashMap::new();
     for r in rows {
-        let file = Path::new(&r[2]).file_name().map(|f| f.to_string_lossy().to_lowercase()).unwrap_or_default();
+        // Split on both separators, so this also works on the Windows paths in Linux tests.
+        let file = r[2].rsplit(['\\', '/']).next().unwrap_or("").to_lowercase();
         groups.entry((file, r[3].to_lowercase())).or_default().push(r);
     }
     let mut out = Vec::new();
@@ -246,7 +247,7 @@ pub fn old_drivers(rows: &[Vec<String>]) -> Vec<(String, PathBuf, String)> {
         g.sort_by(|a, b| crate::inf::cmp_driver(&a[6], &a[5], &b[6], &b[5]));
         let newest = g.pop().map(|r| r[5].clone()).unwrap_or_default();
         for r in g.into_iter().filter(|r| r[7] == "0") {
-            let folder = Path::new(&r[2]).parent().map(Path::to_path_buf).unwrap_or_default();
+            let folder = r[2].rsplit_once(['\\', '/']).map(|(dir, _)| PathBuf::from(dir)).unwrap_or_default();
             out.push((r[1].clone(), folder, format!("{} {} driver {} ({}), replaced by {newest}", r[3], r[4], r[5], r[6])));
         }
     }

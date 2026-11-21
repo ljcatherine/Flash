@@ -250,6 +250,12 @@ pub fn snapshot_status() -> Result<(), String> {
     }
 }
 
+/// Arch doesn't support partial upgrades, so installing any package there upgrades everything.
+pub fn install_note(updates: &[Update]) -> Option<&'static str> {
+    let pkgs = updates.iter().any(|u| u.source == Source::System || u.key.ends_with(".pkg.tar.zst"));
+    (pkgs && packages::detect() == Ok(Pm::Pacman)).then_some("Arch Linux doesn't support partial upgrades, so this runs a full system upgrade (pacman -Syu).")
+}
+
 fn names_of(key: &str) -> Vec<String> {
     key.strip_prefix("pkg:").map(|n| n.split(',').filter(|s| packages::is_name(s)).map(String::from).collect()).unwrap_or_default()
 }

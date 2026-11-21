@@ -41,8 +41,6 @@ pub(crate) struct FwDevice {
 pub(crate) struct FwRelease {
     #[serde(rename = "Name", default)]
     pub name: String,
-    #[serde(rename = "Summary", default)]
-    pub summary: String,
     #[serde(rename = "Version", default)]
     pub version: String,
     #[serde(rename = "Created", default)]

@@ -112,7 +112,7 @@ impl AppUpdateUi {
                             download = Some(update.clone());
                         }
                     } else {
-                        ui.label("This release has no verifiable package for your installation. Download it from the release page.");
+                        ui.label(update.manual_note());
                     }
                 }
                 State::Ready(_) => {

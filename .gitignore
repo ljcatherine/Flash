@@ -2,3 +2,5 @@
 /mockups
 /dist
 .wrangler/
+/site
+/dist-linux

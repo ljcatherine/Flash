@@ -15,7 +15,7 @@ mod update;
 pub use devices::{is_builtin, problem_fix, problem_text, purpose, read_devices, rescan_hardware};
 pub use health::{gpu_latest, health_report, whea_read};
 pub use monitor::{gpu_sampler, sensors};
-pub use sources::{can_undo, check_source, export_drivers, install, rollback, snapshot_status};
+pub use sources::{can_undo, check_source, export_drivers, install, install_note, rollback, snapshot_status};
 pub use storage::{breakdown_plan, clean, find_junk};
 pub use system::{schedule_enabled, set_schedule, set_startup, startup_apps};
 pub use update::{apply_update, install_kind, installed_exe, update_dir};
@@ -335,6 +335,35 @@ pub fn open_unbuffered(path: &Path, write: bool) -> std::io::Result<std::fs::Fil
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Runs the read-only parts against this PC: `cargo test --lib live_linux -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn live_linux() {
+        let (devices, err, _) = read_devices();
+        println!("{} devices, error: {err:?}", devices.len());
+        for d in &devices {
+            println!("  [{}] {} | {} | {} {} | {} | problem {}", crate::purpose(&d.class), d.name, d.class, d.inf, d.version, d.provider, d.problem);
+        }
+        let shared = crate::Shared::default();
+        for src in crate::Source::ALL.into_iter().take(3) {
+            let ups = check_source(src, &shared, &devices, true, None);
+            println!("{}: {} -> {ups:#?}", src.name(), shared.lock().unwrap().source_status[src as usize]);
+        }
+        println!("{}", shared.lock().unwrap().log);
+        let r = health_report();
+        println!("{r:#?}");
+        println!("hardware errors (90 days): {}", whea_read(90).len());
+        for j in find_junk() {
+            println!("  junk {} [{}] {} bytes on={}", j.name, j.group, j.size, j.default_on);
+        }
+        for a in startup_apps() {
+            println!("  startup {} enabled={} delay={:?} at {}", a.name, a.enabled, a.delay_ms, a.location);
+        }
+        println!("schedule on: {}  snapshot: {:?}  install kind: {:?}", schedule_enabled(), snapshot_status(), install_kind(&std::env::current_exe().unwrap()));
+        let (temps, fans) = sensors(&mut sysinfo::Components::new_with_refreshed_list());
+        println!("temps {temps:?}\nfans {fans:?}");
+    }
 
     #[test]
     fn os_release_dirs_and_uris() {

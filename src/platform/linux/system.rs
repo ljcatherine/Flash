@@ -97,7 +97,10 @@ pub(crate) fn runs_here(e: &HashMap<String, String>, desktops: &[String]) -> boo
             return false;
         }
     }
-    e.get("Type").is_none_or(|t| t == "Application")
+    // Desktop session parts (Plasma's and GNOME's own services) declare a start phase;
+    // turning those off can break the session, so they aren't listed.
+    let session_part = e.keys().any(|k| k.eq_ignore_ascii_case("X-KDE-autostart-phase") || k.eq_ignore_ascii_case("X-GNOME-Autostart-Phase"));
+    !session_part && e.get("Type").is_none_or(|t| t == "Application")
 }
 
 pub(crate) fn entry_enabled(e: &HashMap<String, String>) -> bool {
@@ -279,6 +282,7 @@ mod tests {
         assert!(entry_enabled(&desktop_entry(&with_hidden(&off, false))));
         assert!(!runs_here(&desktop_entry("[Desktop Entry]\nOnlyShowIn=GNOME;\n"), &["KDE".into()]));
         assert!(!runs_here(&desktop_entry("[Desktop Entry]\nNotShowIn=KDE;\n"), &["KDE".into()]));
+        assert!(!runs_here(&desktop_entry("[Desktop Entry]\nName=Global Shortcuts\nX-KDE-autostart-phase=0\n"), &["KDE".into()]));
     }
 
     #[test]

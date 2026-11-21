@@ -375,6 +375,11 @@ pub fn snapshot_status() -> Result<(), String> {
     Ok(())
 }
 
+/// Something the install dialog must say about these updates (nothing on Windows).
+pub fn install_note(_updates: &[Update]) -> Option<&'static str> {
+    None
+}
+
 /// Installs the chosen updates, each through the right channel, then rescans.
 pub fn install(d: &Shared, updates: &[Update], restore_point: bool) {
     if restore_point {

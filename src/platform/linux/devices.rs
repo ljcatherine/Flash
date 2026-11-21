@@ -64,7 +64,11 @@ pub(crate) fn parse_modinfo(text: &str) -> ModInfo {
             "version" => m.version = v.to_string(),
             "intree" => m.intree = v == "Y",
             "signer" => m.signer = v.to_string(),
-            "filename" => m.filename = v.to_string(),
+            "filename" => {
+                m.filename = v.to_string();
+                // Built into the kernel image: modinfo prints no "intree" line for these.
+                m.intree |= v == "(builtin)";
+            }
             "description" if m.description.is_empty() => m.description = v.to_string(),
             _ => {}
         }
@@ -149,12 +153,12 @@ pub fn purpose(class: &str) -> &'static str {
         "Bluetooth"
     } else if any(&["audio", "sound"]) {
         "Audio"
+    } else if any(&["sata", "non-volatile", "nvme", "raid", "ide ", "ide interface", "scsi", "mass storage", "sd host", "storage", "sas "]) {
+        "Storage"
     } else if any(&["smbus", "host bridge", "isa bridge", "pci bridge", "iommu", "system peripheral", "instrumentation", "signal processing", "memory controller", "processor", "system firmware", "communication controller", "bridge"]) {
         "Chipset & system"
     } else if any(&["ethernet", "network", "wireless", "wi-fi", "communications"]) {
         "Network"
-    } else if any(&["sata", "non-volatile", "nvme", "raid", "ide ", "ide interface", "scsi", "mass storage", "sd host", "storage", "sas "]) {
-        "Storage"
     } else if any(&["human interface", "keyboard", "mouse", "input"]) {
         "Input"
     } else if any(&["usb", "hub", "serial bus", "thunderbolt"]) {
@@ -549,7 +553,7 @@ mod tests {
         assert_eq!((nic.version.as_str(), nic.provider.as_str(), nic.date.as_str()), ("6.18.63", KERNEL, "2026-11-10"));
         assert_eq!(purpose(&nic.class), "Network");
         // Host bridges have no driver and need none: not listed, like on Windows.
-        assert!(!devs.iter().any(|d| d.class == "Host bridge"));
+        assert!(!devs.iter().any(|d| d.class == "Host bridge" && d.inf.is_empty()));
         // USB devices take their class from their interfaces.
         let bt = devs.iter().find(|d| d.instance.starts_with("usb:") && d.inf.contains("btusb"));
         assert!(bt.is_none_or(|b| purpose(&b.class) == "Bluetooth"));
@@ -608,6 +612,7 @@ mod tests {
         let n = parse_modinfo(MODINFO_NVIDIA);
         assert_eq!(n.version, "595.71.05");
         assert!(!n.intree);
+        assert!(parse_modinfo("name:           usbcore\nfilename:       (builtin)\nlicense:        GPL\n").intree); // captured on this PC
         let r = parse_modinfo(MODINFO_R8169);
         assert!(r.intree && r.version.is_empty());
         assert_eq!(r.description, "RealTek RTL-8169 Gigabit Ethernet driver");

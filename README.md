@@ -5,10 +5,11 @@
 # Flash
 
 **Every device, every driver, up to date.**<br>
-A Windows driver updater and PC health tool in Rust: drivers from four sources, hardware health with a built-in hardware-error knowledge base, CPU/GPU/memory/disk benchmarks, storage cleanup and a live system monitor.
+A driver updater and PC health tool for Windows and Linux in Rust: drivers from four sources, hardware health with a built-in hardware-error knowledge base, CPU/GPU/memory/disk benchmarks, storage cleanup and a live system monitor.
 
 [![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011%20x64-0B1430?style=flat-square&logo=windows&logoColor=9CBCFF&labelColor=070C18)](#install)
-[![Rust stable](https://img.shields.io/badge/Rust-stable%20MSVC-0B1430?style=flat-square&logo=rust&logoColor=F1C07E&labelColor=070C18)](Cargo.toml)
+[![Linux](https://img.shields.io/badge/Linux-x86__64%20%7C%20aarch64-0B1430?style=flat-square&logo=linux&logoColor=9CBCFF&labelColor=070C18)](#flash-for-linux)
+[![Rust stable](https://img.shields.io/badge/Rust-stable-0B1430?style=flat-square&logo=rust&logoColor=F1C07E&labelColor=070C18)](Cargo.toml)
 [![egui](https://img.shields.io/badge/UI-egui%200.31-0B1430?style=flat-square&labelColor=070C18)](src/main.rs)
 [![Sources](https://img.shields.io/badge/sources-4-0B1430?style=flat-square&labelColor=070C18)](#update-sources)
 [![Tools](https://img.shields.io/badge/tools-health%20%C2%B7%20bench%20%C2%B7%20clean%20%C2%B7%20monitor-0B1430?style=flat-square&labelColor=070C18)](#system-tools)
@@ -22,6 +23,7 @@ A Windows driver updater and PC health tool in Rust: drivers from four sources, 
 [Update sources](#update-sources) ·
 [How it works](#how-it-works) ·
 [Install](#install) ·
+[Linux](#flash-for-linux) ·
 [Build from source](#build-from-source) ·
 [Safety](#safety)
 
@@ -256,6 +258,72 @@ powershell -ExecutionPolicy Bypass -File scripts\release.ps1   # dist\: .exe, po
 - A restore point needs System Protection turned on for drive C:, and Windows allows one about every 24 hours. If it can't make one, the Activity page says why.
 - Catalog searches match the chip, not the PC model, so a package can be built for another maker's machines. Flash checks the downloaded INFs against the device's exact hardware IDs and skips packages that don't list them, then reports whether each driver actually changed.
 
+## Flash for Linux
+
+The same app, pages and knowledge bases, built on Linux's own mechanisms. Flash runs as you;
+each change (installing a driver, a snapshot, a system cleanup) goes through a small helper with
+polkit, so you're asked for an administrator password only when something changes. Never start
+Flash with `sudo`: it refuses to run as root.
+
+| Area | On Linux |
+|---|---|
+| Devices | Every PCI and USB device from the udev database, the driver bound to each and its kernel module (`modinfo`), plus the firmware fwupd can update (UEFI, NVMe, Secure Boot keys) |
+| Problems | No driver, a driver that didn't load or failed to start, missing firmware, a refused unsigned module (Secure Boot), a switched-off USB device, a firmware update waiting for a restart |
+| Hardware errors | Machine checks (AMD's decoded and the generic format), PCIe AER, EDAC and APEI from the kernel log, plus the EDAC and AER counters, explained by the same knowledge base as Windows' WHEA events |
+| Health | Drive health from udisks2 (smartctl through the helper when it's missing), battery wear, unclean shutdowns from the journal, kernel panics from pstore, GPU resets (NVIDIA Xid, amdgpu, i915/xe) |
+| Monitor | GPU use per app from DRM fdinfo and `nvidia-smi pmon`, every hwmon sensor and fan |
+| Cleaner | App caches, your old files in `/tmp`, Trash, crash dumps, the journal, package caches, unused Flatpaks, old Snap revisions, old kernels (never the running or newest one) |
+| Weekly scan, startup apps | A `systemd --user` timer; XDG autostart entries and your own user services, with their boot time |
+| Tray | A StatusNotifierItem (KDE, and GNOME with the AppIndicator extension); on Wayland, which can't hide windows, closing mid-job minimizes Flash |
+
+| Source | What it checks | Installs with |
+|---|---|---|
+| **Distribution packages** | Driver packages with updates: the kernel, linux-firmware, microcode, Mesa, NVIDIA, DKMS and X.Org drivers (apt, dnf, pacman or zypper) | Your package manager, through the helper. On Arch this is a full `pacman -Syu`, since Arch doesn't support partial upgrades |
+| **Firmware (LVFS)** | `fwupdmgr get-updates`: device firmware and UEFI/BIOS capsules | fwupd itself (its own polkit rules) |
+| **Installed modules** | Vendor kernel modules already installed that match a device the in-kernel driver has (`modprobe -R`) | A `modprobe.d` entry and a new initramfs, through the helper; a restart switches over |
+| **Local folder** | fwupd `.cab` files and `.deb` / `.rpm` / `.pkg.tar` driver packages | fwupd, or your package manager through the helper |
+
+Before installing, Flash makes a Snapper or Timeshift snapshot. Without either, the install dialog
+says so and installs only once you tick that you want to go ahead without one. Every change is
+recorded with the previous version, so **Undo** downgrades the packages, puts back the old firmware
+or removes the module setting. NixOS and image-based systems (Silverblue, bootc) manage packages
+themselves, so the package source says how to update there instead.
+
+### Install on Linux
+
+| File | Use it when |
+|---|---|
+| `flash_<version>_amd64.deb` | Debian, Ubuntu and derivatives |
+| `flash-<version>.x86_64.rpm` | Fedora, openSUSE |
+| `Flash-<version>-x86_64.AppImage` | Any distribution, no install (asks for a password for each change) |
+| `flash-<version>-x86_64.tar.gz` | You want the binary and helper to place yourself (see `INSTALL.txt`) |
+| Nix flake | NixOS: add `github:ljcatherine/Flash` as an input and set `programs.flash.enable = true;` (module `nixosModules.default`), or `nix run github:ljcatherine/Flash` |
+
+Check downloads against `SHA256SUMS-linux.txt`. Flash updates itself from the AppImage, tarball,
+`.deb` and `.rpm`; Nix, Flatpak and distribution packages update with their package manager.
+Recommended alongside: `fwupd`, `udisks2`, and Snapper or Timeshift.
+
+### Build on Linux
+
+```bash
+cargo build --release -p flash -p flash-helper
+```
+
+```bash
+cargo test --workspace
+```
+
+```bash
+nix build
+```
+
+Release packages are built in a Debian 12 container (Docker or Podman), so they run on every
+distribution, whatever this machine runs:
+
+```bash
+scripts/release.sh
+```
+
 ## License
 
 Flash is free software under the [GNU General Public License v3.0 or later](LICENSE). You can
@@ -280,9 +348,16 @@ same license with its source available.
 | [`src/whea.rs`](src/whea.rs) | WHEA event reader and hardware error knowledge base |
 | [`src/storage.rs`](src/storage.rs) | Drive usage, folder breakdown, cleaner (temp files, caches, old drivers, apps) |
 | [`src/monitor.rs`](src/monitor.rs) | Live sampling with `sysinfo`, plus GPU use per app from Windows' GPU counters |
-| [`build.rs`](build.rs) | Embeds the `requireAdministrator` manifest and the app icon |
+| [`src/platform/`](src/platform) | Everything OS-specific: [`windows.rs`](src/platform/windows.rs) and [`linux/`](src/platform/linux) export the same functions |
+| [`src/tray_windows.rs`](src/tray_windows.rs), [`src/tray_linux.rs`](src/tray_linux.rs) | Tray icon and notifications per OS |
+| [`helper/`](helper) | `flash-helper`, the only part of Flash for Linux that runs as root (started by pkexec, validates everything) |
+| [`build.rs`](build.rs) | On Windows, embeds the `requireAdministrator` manifest and the app icon |
 | [`scripts/release.ps1`](scripts/release.ps1) | Builds the release and packages the exe, portable zip and MSI |
 | [`packaging/flash.wxs`](packaging/flash.wxs) | WiX source for the MSI installer |
+| [`scripts/release.sh`](scripts/release.sh), [`scripts/linux/`](scripts/linux) | Builds the Linux release in a container: .deb, .rpm, AppImage, tarball |
+| [`packaging/linux/`](packaging/linux) | polkit policy and desktop entry |
+| [`flake.nix`](flake.nix), [`nix/`](nix) | Nix package and NixOS module |
+| [`tests/fixtures/linux/`](tests/fixtures/linux) | Real captured output the Linux parser tests run against |
 | [`site/`](site) | The [flash.liamjc.dev](https://flash.liamjc.dev) website: static HTML, CSS and JS on Cloudflare Workers (`cd site && npx wrangler deploy`) |
 | [`LICENSE`](LICENSE) | GPL-3.0 license text, also shipped in the zip and installed with the MSI |
 | [`assets/`](assets) | App icon as SVG, PNG and ICO |

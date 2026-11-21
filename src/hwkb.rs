@@ -1,7 +1,6 @@
 //! Hardware knowledge base: what each CPU architecture and GPU vendor needs, from the
 //! names the OS reports. Every profile has its own memory-profile name, driver tool,
 //! known issues and fixes, with a Windows and a Linux list side by side.
-use crate::os;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CpuArch {

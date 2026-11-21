@@ -137,7 +137,7 @@ impl Tray {
     }
 
     /// Removes the tray icon once the window is back.
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, _ctx: &eframe::egui::Context) {
         if !hidden() && self.icon.is_some() {
             self.icon = None;
         }

@@ -3,6 +3,8 @@ use crate::{ACCENT, BG, BORDER, ERR, MUTED, OK, RAISED, SURFACE, TEXT, WARN, car
 use eframe::egui::{self, Align, Color32, Id, Layout, RichText, Sense, Shape, Stroke, Ui, pos2, vec2};
 use egui_extras::{Column, TableBuilder};
 use flash::bench::{self, Test};
+use flash::os;
+use flash::platform::Tool;
 use flash::health::{self, Report};
 use flash::whea;
 use flash::monitor::{self, SharedMonitor};
@@ -101,6 +103,7 @@ pub struct SysUi {
     gpu_name: String,
     stress_minutes: u32,
     stress_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    tool_note: String, // what the last system tool button said (Linux: memtest, missing apps)
 }
 
 const PART_COLORS: [Color32; 6] = [
@@ -175,7 +178,7 @@ fn rate(bytes_per_s: f64) -> String {
 
 impl SysUi {
     pub fn new() -> SysUi {
-        SysUi { sys: Shared::default(), mon: SharedMonitor::default(), picked: HashSet::new(), junk_gen_seen: 0, bench_drive: String::new(), confirm_clean: false, app_sort: AppSort::Cpu, gpu_queue: Default::default(), gpu_run: None, gpu_name: String::new(), stress_minutes: 10, stress_stop: Default::default() }
+        SysUi { sys: Shared::default(), mon: SharedMonitor::default(), picked: HashSet::new(), junk_gen_seen: 0, bench_drive: String::new(), confirm_clean: false, app_sort: AppSort::Cpu, gpu_queue: Default::default(), gpu_run: None, gpu_name: String::new(), stress_minutes: 10, stress_stop: Default::default(), tool_note: String::new() }
     }
 
     pub fn monitor_running(&self) -> bool {
@@ -210,7 +213,7 @@ impl SysUi {
                 Act::Drives => {
                     let d = storage::drives();
                     if self.bench_drive.is_empty() {
-                        self.bench_drive = d.iter().find(|x| x.mount.starts_with("C:")).or(d.first()).map(|x| x.mount.clone()).unwrap_or_default();
+                        self.bench_drive = d.iter().find(|x| x.mount.starts_with(os!("C:", "/home")) || x.mount == os!("C:\\", "/")).or(d.first()).map(|x| x.mount.clone()).unwrap_or_default();
                     }
                     self.sys.lock().unwrap().drives = d;
                 }
@@ -433,7 +436,7 @@ impl SysUi {
                 match &g.health {
                     None => empty(ui, "Reading your hardware...", "This takes a few seconds."),
                     Some(Err(e)) => empty(ui, "Couldn't read hardware details", e),
-                    Some(Ok(r)) => self.health_body(ui, r, devices),
+                    Some(Ok(r)) => self.health_body(ui, r, devices, updates),
                 }
                 self.bench_body(ui, &g, &mut acts);
             });
@@ -442,12 +445,20 @@ impl SysUi {
     }
 
     /// Hardware errors from the WHEA log, each with its explanation and fixes.
-    fn whea_section(&self, ui: &mut Ui, r: &Report, devices: &[flash::Device]) {
+    /// Opens a system tool and keeps what it said to show under its button.
+    fn tool(&mut self, t: Tool) {
+        self.tool_note = match flash::platform::open_tool(t) {
+            Ok(msg) => msg.trim().to_string(),
+            Err(e) => e.trim().to_string(),
+        };
+    }
+
+    fn whea_section(&mut self, ui: &mut Ui, r: &Report, devices: &[flash::Device]) {
         if r.whea.is_empty() {
             return;
         }
         let wctx = r.whea_context();
-        section(ui, "Hardware errors", "From the last 90 days of Windows' hardware error log (WHEA), grouped, with what each one means and how to fix it.");
+        section(ui, "Hardware errors", os!("From the last 90 days of Windows' hardware error log (WHEA), grouped, with what each one means and how to fix it.", "From the last 90 days of the kernel log (machine checks, PCIe AER, EDAC), grouped, with what each one means and how to fix it."));
         for (i, g) in r.whea.iter().enumerate() {
             let a = whea::explain(g, &wctx);
             let device = (!g.device.is_empty())
@@ -471,7 +482,8 @@ impl SysUi {
                             ui.label(RichText::new(format!("{} time{}", g.count, if g.count == 1 { "" } else { "s" })).strong().color(color));
                         });
                     });
-                    let mut facts = vec![format!("Event {}", g.id), if g.fatal { "caused a crash".to_string() } else { "corrected, no crash".to_string() }];
+                    let mut facts: Vec<String> = (g.id != 0).then(|| format!("Event {}", g.id)).into_iter().collect();
+                    facts.push(if g.fatal { "caused a crash".to_string() } else { "corrected, no crash".to_string() });
                     facts.extend([&g.component, &g.source, &g.error_type].into_iter().filter(|s| !s.is_empty()).cloned());
                     if !g.bdf.is_empty() {
                         facts.push(format!("PCI {}", g.bdf));
@@ -502,16 +514,19 @@ impl SysUi {
             ui.add_space(6.0);
         }
         ui.horizontal(|ui| {
-            if ui.button("Open Event Viewer").clicked() {
-                flash::run_hidden("cmd", &["/c", "start", "", "eventvwr.msc"]);
+            if ui.button(os!("Open Event Viewer", "Open the system log")).clicked() {
+                self.tool(Tool::EventViewer);
             }
-            if ui.button("Windows Memory Diagnostic").on_hover_text("Tests your RAM at the next restart.").clicked() {
-                std::process::Command::new("mdsched.exe").spawn().ok();
+            if ui.button(os!("Windows Memory Diagnostic", "Memory test")).on_hover_text(os!("Tests your RAM at the next restart.", "Starts memtest86+ at the next restart.")).clicked() {
+                self.tool(Tool::MemoryTest);
             }
         });
+        if !self.tool_note.is_empty() {
+            ui.label(RichText::new(&self.tool_note).size(12.5).color(WARN));
+        }
     }
 
-    fn health_body(&self, ui: &mut Ui, r: &Report, devices: &[flash::Device]) {
+    fn health_body(&mut self, ui: &mut Ui, r: &Report, devices: &[flash::Device], updates: &[flash::Update]) {
         let gap = 12.0;
         let w = ((ui.available_width() - 3.0 * gap) / 4.0).max(150.0);
         let bad_disks = r.disks.iter().filter(|d| !health::disk_verdict(d).0).count();
@@ -531,10 +546,10 @@ impl SysUi {
             note(ui, WARN, &format!("Memory is running at {running} MT/s, but it's rated for {rated}"), "Turn on XMP (Intel) or DOCP/EXPO (AMD) in your BIOS to run it at full speed. It's a free performance boost, often 10-20% in games.");
         }
         if r.crashes > 0 {
-            note(ui, ERR, &format!("{} blue-screen crash{} in the last 30 days", r.crashes, if r.crashes == 1 { "" } else { "es" }), "Crashes are often caused by outdated chipset or graphics drivers. Check the Updates page, and keep an eye on the hardware errors count.");
+            note(ui, ERR, &format!("{} {}{} in the last 30 days", r.crashes, os!("blue-screen crash", "kernel panic"), if r.crashes == 1 { "" } else { os!("es", "s") }), "Crashes are often caused by outdated chipset or graphics drivers. Check the Updates page, and keep an eye on the hardware errors count.");
         }
         if r.unexpected_shutdowns > 0 {
-            note(ui, WARN, &format!("Windows shut down unexpectedly {} time{}", r.unexpected_shutdowns, if r.unexpected_shutdowns == 1 { "" } else { "s" }), "It lost power or stopped responding without shutting down properly. If you didn't hold the power button or lose power, this points to instability (power supply, overclock or overheating).");
+            note(ui, WARN, &format!("{} shut down unexpectedly {} time{}", os!("Windows", "The PC"), r.unexpected_shutdowns, if r.unexpected_shutdowns == 1 { "" } else { "s" }), "It lost power or stopped responding without shutting down properly. If you didn't hold the power button or lose power, this points to instability (power supply, overclock or overheating).");
         }
         self.whea_section(ui, r, devices);
 
@@ -551,7 +566,7 @@ impl SysUi {
             });
         });
 
-        crate::extras_ui::hardware(ui, r);
+        crate::extras_ui::hardware(ui, r, updates);
         section(ui, "Drives", "Health as reported by each drive. Temperature and wear need the drive to report them.");
         card(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -782,8 +797,7 @@ impl SysUi {
                                             ui.add(egui::Label::new(RichText::new(path.to_string_lossy()).color(MUTED)).truncate());
                                             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                                 if ui.small_button("Show").clicked() {
-                                                    let arg = format!("/select,{}", path.to_string_lossy());
-                                                    std::process::Command::new("explorer").arg(arg).spawn().ok();
+                                                    flash::platform::show_in_folder(path);
                                                 }
                                             });
                                         });
@@ -844,7 +858,7 @@ impl SysUi {
                 for j in junk.iter().filter(|j| j.group == grp) {
                     ui.horizontal(|ui| {
                         let mut on = self.picked.contains(&j.id);
-                        if ui.add_enabled(j.size > 0 || matches!(j.kind, storage::Kind::App(_)), egui::Checkbox::without_text(&mut on)).changed() {
+                        if ui.add_enabled(j.size > 0 || j.kind.sizeless(), egui::Checkbox::without_text(&mut on)).changed() {
                             if on {
                                 self.picked.insert(j.id.clone());
                             } else {
@@ -885,7 +899,10 @@ impl SysUi {
                 ui.label(RichText::new(format!("and {} more", items.len() - 12)).color(MUTED));
             }
             if items.iter().any(|j| matches!(j.kind, storage::Kind::RecycleBin)) {
-                ui.label(RichText::new("The Recycle Bin is emptied permanently.").color(WARN));
+                ui.label(RichText::new(os!("The Recycle Bin is emptied permanently.", "The Trash is emptied permanently.")).color(WARN));
+            }
+            if items.iter().any(|j| matches!(j.kind, storage::Kind::Helper(_) | storage::Kind::OldKernel(_) | storage::Kind::FlatpakUser)) {
+                ui.label(RichText::new("System cleanups ask for an administrator password.").color(WARN));
             }
             if items.iter().any(|j| matches!(j.kind, storage::Kind::App(_))) {
                 ui.label(RichText::new("Selected apps are uninstalled for your account.").color(WARN));
@@ -1050,7 +1067,7 @@ impl SysUi {
                     self.app_sort = sort;
                 }
 
-                section(ui, "Startup apps", "Programs that start with Windows. Fewer means a faster boot and less running in the background.");
+                section(ui, "Startup apps", os!("Programs that start with Windows. Fewer means a faster boot and less running in the background.", "Programs and services that start when you sign in. Fewer means a faster start and less running in the background."));
                 card(ui, |ui| {
                     ui.set_width(ui.available_width());
                     match &m.startup {
@@ -1073,8 +1090,8 @@ impl SysUi {
                         }
                     }
                     ui.add_space(6.0);
-                    if ui.button("Manage in Task Manager").clicked() {
-                        std::process::Command::new("taskmgr").args(["/0", "/startup"]).spawn().ok();
+                    if ui.button(os!("Manage in Task Manager", "Manage in system settings")).clicked() {
+                        flash::platform::open_tool(Tool::StartupManager).ok();
                     }
                 });
             });
@@ -1088,9 +1105,10 @@ fn export_report(r: &Report, devices: &[flash::Device], updates: &[flash::Update
     let rows: Vec<(String, String)> = Test::ALL.iter().filter_map(|t| bench.get(t)?.as_ref().ok().map(|v| (t.name().to_string(), format!("{v:.1} {}", t.unit())))).collect();
     let html = flash::extras::report_html(r, devices, updates, &rows);
     let name = format!("Flash report {}.html", flash::extras::date(flash::extras::now()));
-    let desktop = std::env::var_os("USERPROFILE").map(PathBuf::from).map(|p| p.join("Desktop"));
-    let path = desktop.filter(|d| d.is_dir()).unwrap_or_else(flash::extras::data_dir).join(name);
+    let dir = flash::platform::desktop_dir().unwrap_or_else(flash::extras::data_dir);
+    std::fs::create_dir_all(&dir).ok();
+    let path = dir.join(name);
     if std::fs::write(&path, html).is_ok() {
-        flash::run_hidden("cmd", &["/c", "start", "", &path.to_string_lossy()]);
+        flash::platform::open(&path.to_string_lossy());
     }
 }

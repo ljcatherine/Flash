@@ -1,15 +1,19 @@
-// Flash: scans every PnP device, shows its driver, and installs newer drivers from
-// Windows Update, the Microsoft Update Catalog, the Driver Store or a local folder.
+// Flash: scans every device, shows its driver, and installs newer drivers. On Windows from
+// Windows Update, the Microsoft Update Catalog, the Driver Store or a local folder; on Linux
+// from the distribution's packages, the LVFS (fwupd), installed kernel modules or a folder.
 #![windows_subsystem = "windows"]
 use eframe::egui::{self, Align, Align2, Color32, CornerRadius, FontId, Id, Layout, Margin, RichText, Sense, Shape, Stroke, TextStyle, Ui, pos2, vec2};
 use egui_extras::{Column, TableBuilder};
 mod gpu_bench;
 mod system_ui;
 mod app_update_ui;
+#[cfg_attr(windows, path = "tray_windows.rs")]
+#[cfg_attr(target_os = "linux", path = "tray_linux.rs")]
 mod tray;
 mod extras_ui;
 
-use flash::{Device, PURPOSES, Shared, Source, Update, backup, check_folder, install, problem_text, purpose, scan};
+use flash::platform::Tool;
+use flash::{Device, PURPOSES, Shared, Source, Update, backup, check_folder, install, os, problem_text, purpose, scan};
 use std::collections::{HashMap, HashSet};
 
 // Neutral dark palette: one accent colour, status colours only where they carry meaning.
@@ -55,6 +59,7 @@ enum Action {
     Backup,
     Hide(Vec<Update>),
     Undo(usize),
+    Tool(Tool),
 }
 
 struct App {
@@ -79,6 +84,8 @@ struct App {
     schedule: Option<bool>,
     schedule_note: String,
     verbose: bool, // sidebar status expanded into live details
+    snapshot: Option<Result<(), String>>, // whether a restore point / snapshot can be made
+    skip_snapshot: bool,                  // Linux without Snapper/Timeshift: install anyway
 }
 
 impl App {
@@ -474,29 +481,16 @@ fn style(ctx: &egui::Context) {
     });
 }
 
-/// Flash's own native window, for hiding and showing it outside egui.
-fn window_handle(frame: &eframe::Frame) -> Option<isize> {
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    match frame.window_handle().ok()?.as_raw() {
-        RawWindowHandle::Win32(w) => Some(w.hwnd.get()),
-        _ => None,
-    }
-}
-
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.sys.gpu_tick(frame.gl(), ctx);
         self.app_update.poll();
         let data = self.data.clone();
         let mut d = data.lock().unwrap();
-        self.tray.tick();
+        self.tray.tick(ctx);
         // Closing mid-job hides Flash to the notification area instead of killing the job.
-        if ctx.input(|i| i.viewport().close_requested()) && (d.busy || self.sys.update_blocked()) {
-            if let Some(hwnd) = window_handle(frame) {
-                if self.tray.hide(hwnd) {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                }
-            }
+        if ctx.input(|i| i.viewport().close_requested()) && (d.busy || self.sys.update_blocked()) && self.tray.hide(ctx, frame) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         let now = ctx.input(|i| i.time);
         let t = now as f32;
@@ -643,7 +637,7 @@ impl eframe::App for App {
                                     kv(ui, "Provider", &dev.provider);
                                     kv(ui, "Version", &dev.version);
                                     kv(ui, "Date", &dev.date);
-                                    kv(ui, "INF file", &dev.inf);
+                                    kv(ui, os!("INF file", "Kernel module"), &dev.inf);
                                     kv(ui, "Signed by", &dev.signer);
                                 });
 
@@ -660,7 +654,7 @@ impl eframe::App for App {
                                             if on { self.picked.insert(u.key.clone()); } else { self.picked.remove(&u.key); }
                                         }
                                         ui.add(egui::Label::new(RichText::new(&u.title).color(MUTED)).wrap());
-                                        let tag = if u.vendor_swap { format!("{} · replaces the Windows built-in driver", u.source.name()) } else { u.source.name().to_string() };
+                                        let tag = if u.vendor_swap { format!("{} · {}", u.source.name(), os!("replaces the Windows built-in driver", "replaces the in-kernel driver")) } else { u.source.name().to_string() };
                                         ui.label(RichText::new(tag).size(12.0).color(if u.vendor_swap { WARN } else { MUTED }));
                                     });
                                 }
@@ -686,8 +680,8 @@ impl eframe::App for App {
                                 ui.label(RichText::new("INSTANCE").size(11.5).strong().color(MUTED));
                                 ui.add(egui::Label::new(RichText::new(&dev.instance).monospace().color(MUTED)).wrap());
                                 ui.add_space(14.0);
-                                if ui.button("Open Device Manager").clicked() {
-                                    flash::run_hidden("cmd", &["/c", "start", "", "devmgmt.msc"]);
+                                if ui.button(os!("Open Device Manager", "Open system info")).clicked() {
+                                    actions.push(Action::Tool(Tool::DeviceManager));
                                 }
                             });
                         });
@@ -767,14 +761,15 @@ impl eframe::App for App {
                         ui.label(RichText::new("Tools").size(15.0).strong().color(TEXT));
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
-                            if ui.add_enabled(!d.busy, egui::Button::new("Back up drivers...")).on_hover_text("Exports every third-party driver to a folder, so you can reinstall them later.").clicked() {
+                            let backup_tip = os!("Exports every third-party driver to a folder, so you can reinstall them later.", "Saves your out-of-tree drivers and a list of driver packages and firmware versions to a folder.");
+                            if ui.add_enabled(!d.busy, egui::Button::new("Back up drivers...")).on_hover_text(backup_tip).clicked() {
                                 actions.push(Action::Backup);
                             }
-                            if ui.button("Open Device Manager").clicked() {
-                                flash::run_hidden("cmd", &["/c", "start", "", "devmgmt.msc"]);
+                            if ui.button(os!("Open Device Manager", "Open system info")).clicked() {
+                                actions.push(Action::Tool(Tool::DeviceManager));
                             }
-                            if ui.button("System Restore").on_hover_text("Roll the PC back to an earlier restore point.").clicked() {
-                                flash::run_hidden("cmd", &["/c", "start", "", "rstrui.exe"]);
+                            if ui.button(os!("System Restore", "Snapshots")).on_hover_text(os!("Roll the PC back to an earlier restore point.", "Roll the PC back to an earlier Snapper or Timeshift snapshot.")).clicked() {
+                                actions.push(Action::Tool(Tool::SystemRestore));
                             }
                         });
                         ui.add_space(6.0);
@@ -855,15 +850,17 @@ impl eframe::App for App {
                                         row.col(|ui| {
                                             match dev {
                                                 Some(x) => ui.label(RichText::new(&x.name).color(TEXT)),
+                                                // System-wide updates (Linux: the kernel, firmware, microcode) belong to no one device.
+                                                None if u.hwid.is_empty() => ui.label(RichText::new(&u.title).color(TEXT)),
                                                 None => ui.label(RichText::new("Device not connected").color(MUTED)),
                                             }
                                             .on_hover_text(format!("{}\n{}  {}", u.title, u.hwid, u.size));
                                             if u.vendor_swap {
-                                                ui.label(RichText::new("vendor driver").size(12.0).color(WARN)).on_hover_text("Replaces the Windows built-in driver with the hardware maker's driver. Not ticked by default.");
+                                                ui.label(RichText::new("vendor driver").size(12.0).color(WARN)).on_hover_text(os!("Replaces the Windows built-in driver with the hardware maker's driver. Not ticked by default.", "Replaces the in-kernel driver with the hardware maker's module. Not ticked by default."));
                                             }
                                         });
                                         row.col(|ui| {
-                                            let v = dev.map_or("", |x| x.version.as_str());
+                                            let v = if u.installed.is_empty() { dev.map_or("", |x| x.version.as_str()) } else { u.installed.as_str() };
                                             ui.label(RichText::new(if v.is_empty() { "None" } else { v }).monospace().color(MUTED));
                                         });
                                         row.col(|ui| {
@@ -894,7 +891,7 @@ impl eframe::App for App {
                     }
 
                     Page::Devices => {
-                        page_header(ui, "Devices", "Every device Windows has a driver for, or should, grouped by what it's for.", |_| {});
+                        page_header(ui, "Devices", os!("Every device Windows has a driver for, or should, grouped by what it's for.", "Every PCI and USB device Linux has a driver for, or should, and the firmware fwupd updates, grouped by what it's for."), |_| {});
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut self.search).hint_text("Search name, provider, version or hardware ID").desired_width(320.0));
                             egui::ComboBox::from_id_salt("purpose")
@@ -1019,7 +1016,7 @@ impl eframe::App for App {
                     }
 
                     Page::Problems => {
-                        page_header(ui, "Problems", "Devices Device Manager flags with a warning, and whether Flash found a driver for them.", |_| {});
+                        page_header(ui, "Problems", os!("Devices Device Manager flags with a warning, and whether Flash found a driver for them.", "Devices without a working driver or with missing firmware, and whether Flash found a fix for them."), |_| {});
                         if problems.is_empty() {
                             empty(ui, "No device problems", "Every device has a working driver.");
                         } else {
@@ -1050,12 +1047,7 @@ impl eframe::App for App {
                                             ui.label(RichText::new(dev.problem.to_string()).monospace().color(MUTED));
                                         });
                                         row.col(|ui| {
-                                            let fix = match (n_upd(dev), dev.problem) {
-                                                (n, _) if n > 0 => "Driver available on the Updates page",
-                                                (_, 22) => "Enable it in Device Manager",
-                                                (_, 14) => "Restart the PC",
-                                                _ => "No driver found. Try a vendor folder or Device Manager",
-                                            };
+                                            let fix = if n_upd(dev) > 0 { "Driver available on the Updates page" } else { flash::platform::problem_fix(dev.problem) };
                                             ui.label(RichText::new(fix).color(MUTED));
                                         });
                                         if row.response().clicked() {
@@ -1104,14 +1096,28 @@ impl eframe::App for App {
                     }
                     let swaps = chosen.iter().filter(|u| u.vendor_swap).count();
                     if swaps > 0 {
-                        ui.label(RichText::new(format!("{swaps} will replace a Windows built-in driver with the vendor's.")).color(WARN));
+                        ui.label(RichText::new(format!("{swaps} will replace {}", os!("a Windows built-in driver with the vendor's.", "an in-kernel driver with the vendor's module."))).color(WARN));
+                    }
+                    let owned: Vec<Update> = chosen.iter().map(|u| (*u).clone()).collect();
+                    if let Some(note) = flash::platform::install_note(&owned) {
+                        ui.label(RichText::new(note).color(WARN));
                     }
                     ui.add_space(10.0);
-                    ui.checkbox(&mut self.restore_point, "Create a restore point first (recommended)");
+                    let snapshot = self.snapshot.get_or_insert_with(flash::platform::snapshot_status).clone();
+                    match &snapshot {
+                        Ok(()) => {
+                            ui.checkbox(&mut self.restore_point, os!("Create a restore point first (recommended)", "Create a snapshot first (recommended)"));
+                        }
+                        Err(why) => {
+                            self.restore_point = false;
+                            ui.label(RichText::new(why).color(WARN));
+                            ui.checkbox(&mut self.skip_snapshot, "Install without a snapshot");
+                        }
+                    }
                     ui.label(RichText::new("Some drivers need a restart to finish installing.").size(12.5).color(MUTED));
                     ui.add_space(14.0);
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.add(primary("Install")).clicked() {
+                        if ui.add_enabled(snapshot.is_ok() || self.skip_snapshot, primary("Install")).clicked() {
                             actions.push(Action::Install(chosen.iter().map(|u| (*u).clone()).collect(), self.restore_point));
                             self.confirm = false;
                         }
@@ -1163,6 +1169,11 @@ impl eframe::App for App {
                     self.data.lock().unwrap().updates.retain(|u| !ups.iter().any(|h| h.key == u.key && h.device == u.device));
                 }
                 Action::Undo(i) => self.run(ctx, move |d| flash::undo_change(d, i)),
+                Action::Tool(t) => match flash::platform::open_tool(t) {
+                    Ok(msg) if !msg.is_empty() => self.toast = Some((msg, ctx.input(|i| i.time))),
+                    Ok(_) => {}
+                    Err(e) => self.toast = Some((e, ctx.input(|i| i.time))),
+                },
             }
         }
         let busy = self.data.lock().unwrap().busy || self.sys.update_blocked();
@@ -1170,7 +1181,7 @@ impl eframe::App for App {
     }
 }
 
-/// Weekly background scan (Task Scheduler runs `Flash.exe --scheduled`): no window,
+/// Weekly background scan (Task Scheduler or a systemd user timer runs `flash --scheduled`): no window,
 /// and a notification only if something needs attention.
 fn scheduled_scan() {
     let d = Shared::default();
@@ -1190,8 +1201,17 @@ fn main() -> eframe::Result {
         scheduled_scan();
         return Ok(());
     }
+    // Flash for Linux runs as you and asks polkit for each system change; the GUI never runs as root.
+    #[cfg(target_os = "linux")]
+    if unsafe { libc::geteuid() } == 0 {
+        eprintln!("Don't run Flash as root (sudo). Start it as yourself: it asks for an administrator password only when it changes the system.");
+        std::process::exit(1);
+    }
+    let viewport = egui::ViewportBuilder::default();
+    #[cfg(target_os = "linux")]
+    let viewport = viewport.with_app_id("flash");
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
+        viewport: viewport
             .with_inner_size([1200.0, 720.0])
             .with_min_inner_size([960.0, 560.0])
             .with_title("Flash")
@@ -1225,6 +1245,8 @@ fn main() -> eframe::Result {
                 schedule: None,
                 schedule_note: String::new(),
                 verbose: false,
+                snapshot: None,
+                skip_snapshot: false,
             };
             app.run(&cc.egui_ctx, scan); // scan right away on launch
             Ok(Box::new(app))

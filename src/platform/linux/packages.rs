@@ -210,7 +210,8 @@ pub(crate) fn kind(name: &str) -> Option<Kind> {
 
 /// The package whose version stands for a group (the driver itself, not a helper library).
 pub(crate) fn primary<'a>(k: Kind, names: &[&'a str]) -> &'a str {
-    let pick = |pats: &[&str]| names.iter().copied().find(|n| pats.iter().any(|p| n.starts_with(p) || n == p));
+    // The first pattern that matches any name wins, so the list is in order of preference.
+    let pick = |pats: &[&str]| pats.iter().find_map(|p| names.iter().copied().find(|n| n.starts_with(p)));
     let best = match k {
         Kind::Kernel => pick(&["linux-image-generic", "linux-generic", "kernel-core", "kernel", "linux", "kernel-default"]),
         Kind::Firmware => pick(&["linux-firmware"]),
