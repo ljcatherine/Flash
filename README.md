@@ -13,7 +13,7 @@ A driver updater and PC health tool for Windows and Linux in Rust: drivers from 
 [![egui](https://img.shields.io/badge/UI-egui%200.31-0B1430?style=flat-square&labelColor=070C18)](src/main.rs)
 [![Sources](https://img.shields.io/badge/sources-4-0B1430?style=flat-square&labelColor=070C18)](#update-sources)
 [![Tools](https://img.shields.io/badge/tools-health%20%C2%B7%20bench%20%C2%B7%20clean%20%C2%B7%20monitor-0B1430?style=flat-square&labelColor=070C18)](#system-tools)
-[![Release 1.1.0](https://img.shields.io/badge/release-1.1.0-0B1430?style=flat-square&labelColor=070C18)](https://github.com/ljcatherine/Flash/releases/latest)
+[![Release 1.2.0](https://img.shields.io/badge/release-1.2.0-0B1430?style=flat-square&labelColor=070C18)](https://github.com/ljcatherine/Flash/releases/latest)
 [![License GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-0B1430?style=flat-square&labelColor=070C18)](LICENSE)
 
 [**flash.liamjc.dev**](https://flash.liamjc.dev) ·
@@ -43,6 +43,11 @@ Closing Flash while it's scanning (or installing, benchmarking or cleaning) hide
 to the notification area instead of quitting. A Windows notification says so, with
 **Stop scan** and **Quit Flash** buttons, and another tells you when the job is done.
 Click the notification or the tray icon to bring Flash back.
+
+**New in 1.2:** [Flash for Linux](#flash-for-linux). The same pages and knowledge bases on
+Ubuntu, Fedora, Arch, NixOS and more: driver packages, LVFS firmware and kernel modules as update
+sources, kernel-log hardware errors explained like WHEA events, and .deb, .rpm, AppImage, tarball
+and Nix builds.
 
 **New in 1.1:** a weekly background scan that only notifies you when something needs
 attention, a driver history with one-click undo, hiding updates you don't want, CPU/GPU
@@ -365,5 +370,5 @@ same license with its source available.
 </details>
 
 <div align="center">
-<sub>Flash 1.1.0 · built locally, released on GitHub</sub>
+<sub>Flash 1.2.0 · built locally, released on GitHub</sub>
 </div>

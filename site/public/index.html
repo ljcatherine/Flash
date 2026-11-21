@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Flash · drivers and PC health for Windows</title>
-  <meta name="description" content="Flash is a free, open-source Windows driver updater and PC health tool: drivers from four sources, hardware error explanations with fixes, benchmarks, cleanup and a live system monitor.">
+  <title>Flash · drivers and PC health for Windows and Linux</title>
+  <meta name="description" content="Flash is a free, open-source driver updater and PC health tool for Windows and Linux: drivers from four sources, hardware error explanations with fixes, benchmarks, cleanup and a live system monitor.">
   <meta name="theme-color" content="#04080f">
-  <meta property="og:title" content="Flash · drivers and PC health for Windows">
+  <meta property="og:title" content="Flash · drivers and PC health for Windows and Linux">
   <meta property="og:description" content="Every device, every driver, up to date. Free and open source.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,12 +36,12 @@
     <!-- Hero -->
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">Flash for Windows</p>
+        <p class="eyebrow">Flash for Windows and Linux</p>
         <h1>Every device.<br><span class="grad">Every driver.</span></h1>
-        <p class="lede">Flash finds newer drivers from four sources, explains why your PC crashed and how to fix it, benchmarks your hardware and clears out what Windows leaves behind. Free and open source.</p>
-        <p class="pill"><span class="dot"></span>Version 1.1.0 for Windows · Linux in the works</p>
+        <p class="lede">Flash finds newer drivers from four sources, explains why your PC crashed and how to fix it, benchmarks your hardware and clears out what your system leaves behind. Free and open source.</p>
+        <p class="pill"><span class="dot"></span>Version 1.2.0 · now on Windows and Linux</p>
         <div class="cta">
-          <a class="btn primary" href="#download">Download for Windows</a>
+          <a class="btn primary" id="hero-download" href="#download">Download</a>
           <a class="btn" href="https://github.com/ljcatherine/Flash" rel="noopener">View on GitHub</a>
         </div>
       </div>
@@ -74,7 +74,7 @@
       <div class="split-copy">
         <p class="eyebrow">Drivers · four sources</p>
         <h2>Four places to look.<br>One list to tick.</h2>
-        <p>Windows Update only offers part of the picture. Flash also searches the Microsoft Update Catalog by each device's hardware ID, checks the driver packages already on your PC, and reads any folder you point it at, all at the same time.</p>
+        <p>Windows Update only offers part of the picture. Flash also searches the Microsoft Update Catalog by each device's hardware ID, checks the driver packages already on your PC, and reads any folder you point it at, all at the same time. On Linux the four sources are your distribution's driver packages, firmware from the LVFS through fwupd, kernel modules already installed, and a folder.</p>
         <ul class="ticks">
           <li>Installed and available versions side by side, with where each came from</li>
           <li>Restore point first, then each driver through the right channel</li>
@@ -110,7 +110,7 @@
       <div class="split-copy">
         <p class="eyebrow">Device health</p>
         <h2>Knows why your PC crashed.</h2>
-        <p>Windows logs hardware errors (WHEA) in a format almost nobody can read. Flash groups them, names the part involved and explains each one from a built-in knowledge base, with fixes in order, tuned for AMD or Intel.</p>
+        <p>Windows logs hardware errors (WHEA), and Linux machine checks, PCIe and memory errors, in formats almost nobody can read. Flash groups them, names the part involved and explains each one from a built-in knowledge base, with fixes in order, tuned for AMD or Intel.</p>
         <ul class="ticks">
           <li>Every CPU machine-check type, memory, PCI Express, NMI and more</li>
           <li>Spots memory running below its rated speed (XMP or EXPO off)</li>
@@ -164,26 +164,46 @@
       <p class="eyebrow">How it works</p>
       <h2>Scan, check, verify, install, confirm.</h2>
       <ol class="steps">
-        <li><span>01</span><b>Scan</b><p>Reads every device, its driver and hardware IDs through WMI.</p></li>
+        <li><span>01</span><b>Scan</b><p>Reads every device, its driver and hardware IDs through WMI, or udev and sysfs on Linux.</p></li>
         <li><span>02</span><b>Check</b><p>Asks all four sources at once, in parallel.</p></li>
         <li><span>03</span><b>Verify</b><p>Drops downgrades and packages that don't list your exact hardware.</p></li>
-        <li><span>04</span><b>Install</b><p>Restore point, then the Windows Update Agent or pnputil.</p></li>
+        <li><span>04</span><b>Install</b><p>Restore point or snapshot, then the right installer: pnputil, your package manager or fwupd.</p></li>
         <li><span>05</span><b>Confirm</b><p>Rescans and reports which drivers really changed.</p></li>
       </ol>
-      <p class="note">Online drivers only ever come from Microsoft: Windows Update, or Catalog downloads from Microsoft's own servers. No third-party driver sites.</p>
+      <p class="note">Online drivers only ever come from the source: Microsoft's servers on Windows, your distribution's repositories and the LVFS on Linux. No third-party driver sites.</p>
     </section>
 
     <!-- Download -->
     <section id="download" class="download reveal">
-      <p class="eyebrow">Download · version 1.1.0</p>
+      <p class="eyebrow">Download · version 1.2.0</p>
       <h2>Get Flash.</h2>
-      <p class="sub">Windows 10 and 11, 64-bit. Flash asks for administrator rights when it starts, because installing drivers needs them. A Linux version is in the works.</p>
-      <div class="dl-grid">
-        <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/Flash-1.1.0-x64.msi" rel="noopener"><span class="chip">Recommended</span><b>Installer</b><p>Start menu entry and an uninstaller.</p><code>Flash-1.1.0-x64.msi · 3.4 MB</code></a>
-        <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/Flash-1.1.0-x64-portable.zip" rel="noopener"><span class="chip">No install</span><b>Portable</b><p>Run it from any folder or USB stick.</p><code>Flash-1.1.0-x64-portable.zip · 4.0 MB</code></a>
-        <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/Flash-1.1.0-x64.exe" rel="noopener"><span class="chip">Just the app</span><b>Executable</b><p>The single exe, nothing else.</p><code>Flash-1.1.0-x64.exe · 9.0 MB</code></a>
+      <div class="os-tabs" role="tablist" aria-label="Choose your system" hidden>
+        <button type="button" role="tab" id="tab-windows" aria-controls="dl-windows" data-os="windows">Windows</button>
+        <button type="button" role="tab" id="tab-linux" aria-controls="dl-linux" data-os="linux">Linux</button>
       </div>
-      <p class="note">Builds aren't code-signed yet, so Windows SmartScreen may warn the first time (More info, then Run anyway). Check downloads against <a href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/SHA256SUMS.txt" rel="noopener">SHA256SUMS.txt</a>.</p>
+
+      <div class="os-group" id="dl-windows" data-os="windows" role="tabpanel" aria-labelledby="tab-windows">
+        <h3 class="os-title">Windows</h3>
+        <p class="sub">Windows 10 and 11, 64-bit. Flash asks for administrator rights when it starts, because installing drivers needs them.</p>
+        <div class="dl-grid">
+          <a class="glass dl rec" href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/Flash-1.1.0-x64.msi" rel="noopener"><span class="chip">Recommended</span><b>Installer</b><p>Start menu entry and an uninstaller.</p><code>Flash-1.1.0-x64.msi · 3.4 MB</code></a>
+          <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/Flash-1.1.0-x64-portable.zip" rel="noopener"><span class="chip">No install</span><b>Portable</b><p>Run it from any folder or USB stick.</p><code>Flash-1.1.0-x64-portable.zip · 4.0 MB</code></a>
+          <a class="glass dl" href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/Flash-1.1.0-x64.exe" rel="noopener"><span class="chip">Just the app</span><b>Executable</b><p>The single exe, nothing else.</p><code>Flash-1.1.0-x64.exe · 9.0 MB</code></a>
+        </div>
+        <p class="note">The Windows build of 1.2.0 is on its way; these are 1.1.0, and Flash updates itself once it's out. Builds aren't code-signed yet, so Windows SmartScreen may warn the first time (More info, then Run anyway). Check downloads against <a href="https://github.com/ljcatherine/Flash/releases/download/v1.1.0/SHA256SUMS.txt" rel="noopener">SHA256SUMS.txt</a>.</p>
+      </div>
+
+      <div class="os-group" id="dl-linux" data-os="linux" role="tabpanel" aria-labelledby="tab-linux">
+        <h3 class="os-title">Linux</h3>
+        <p class="sub">64-bit x86 for Ubuntu, Debian, Fedora, Arch, openSUSE and more. Flash runs as you and asks for your password only when it changes the system.</p>
+        <div class="dl-grid four">
+          <a class="glass dl rec" data-distro="any" href="https://github.com/ljcatherine/Flash/releases/download/v1.2.0/Flash-1.2.0-x86_64.AppImage" rel="noopener"><span class="chip">Any distribution</span><b>AppImage</b><p>Make it executable and run it. No install.</p><code>Flash-1.2.0-x86_64.AppImage · 10.0 MB</code></a>
+          <a class="glass dl" data-distro="debian" href="https://github.com/ljcatherine/Flash/releases/download/v1.2.0/flash_1.2.0_amd64.deb" rel="noopener"><span class="chip">Ubuntu · Debian</span><b>.deb</b><p>Installs with apt, with a menu entry and polkit rules.</p><code>flash_1.2.0_amd64.deb · 6.9 MB</code></a>
+          <a class="glass dl" data-distro="fedora" href="https://github.com/ljcatherine/Flash/releases/download/v1.2.0/flash-1.2.0.x86_64.rpm" rel="noopener"><span class="chip">Fedora · openSUSE</span><b>.rpm</b><p>Installs with dnf or zypper, with a menu entry and polkit rules.</p><code>flash-1.2.0.x86_64.rpm · 9.9 MB</code></a>
+          <a class="glass dl" data-distro="other" href="https://github.com/ljcatherine/Flash/releases/download/v1.2.0/flash-1.2.0-x86_64.tar.gz" rel="noopener"><span class="chip">Just the app</span><b>Tarball</b><p>The binary and its helper, to place yourself.</p><code>flash-1.2.0-x86_64.tar.gz · 10.0 MB</code></a>
+        </div>
+        <p class="note">On NixOS, add <code>github:ljcatherine/Flash</code> to your flake and set <code>programs.flash.enable = true;</code>, or try it with <code>nix run github:ljcatherine/Flash</code>. Check downloads against <a href="https://github.com/ljcatherine/Flash/releases/download/v1.2.0/SHA256SUMS-linux.txt" rel="noopener">SHA256SUMS-linux.txt</a>.</p>
+      </div>
     </section>
 
     <section class="oss reveal">
@@ -196,7 +216,7 @@
           <a class="btn" href="https://github.com/ljcatherine/Flash/releases" rel="noopener">All releases</a>
         </div>
       </div>
-      <ul class="stack"><li>Rust</li><li>egui</li><li>sysinfo</li><li>OpenGL</li><li>WiX</li><li>GPL-3.0</li></ul>
+      <ul class="stack"><li>Rust</li><li>egui</li><li>sysinfo</li><li>OpenGL</li><li>WiX</li><li>polkit</li><li>fwupd</li><li>Nix</li><li>GPL-3.0</li></ul>
     </section>
   </main>
 

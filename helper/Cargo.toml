@@ -1,6 +1,6 @@
 [package]
 name = "flash-helper"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
 description = "The polkit helper Flash for Linux runs for privileged actions"
 repository = "https://github.com/ljcatherine/Flash"
