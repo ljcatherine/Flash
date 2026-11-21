@@ -1,14 +1,11 @@
 //! Quick component benchmarks: CPU (one core and all cores), memory bandwidth, and
-//! disk sequential/random speed. Disk tests bypass the Windows file cache so they
-//! measure the drive, not RAM.
+//! disk sequential/random speed. Disk tests bypass the OS file cache (unbuffered I/O on
+//! Windows, O_DIRECT on Linux) so they measure the drive, not RAM.
 use std::hint::black_box;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::os::windows::fs::OpenOptionsExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-const NO_BUFFERING: u32 = 0x2000_0000; // FILE_FLAG_NO_BUFFERING
-const WRITE_THROUGH: u32 = 0x8000_0000; // FILE_FLAG_WRITE_THROUGH
 const CHUNK: usize = 4 << 20; // 4 MiB, a multiple of every sector size
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -56,8 +53,8 @@ impl Test {
             Test::CpuMulti => "The same work on every thread at once. Matters for rendering, compiling and encoding.",
             Test::Memory => "Copies a 256 MB block in RAM. Higher means faster loading and multitasking.",
             Test::DiskWrite => "Writes a 1 GB file straight to the drive.",
-            Test::DiskRead => "Reads that file back, skipping the Windows cache.",
-            Test::DiskRandom => "Small reads at random spots. The best measure of how fast Windows and apps load.",
+            Test::DiskRead => crate::os!("Reads that file back, skipping the Windows cache.", "Reads that file back, skipping the page cache."),
+            Test::DiskRandom => crate::os!("Small reads at random spots. The best measure of how fast Windows and apps load.", "Small reads at random spots. The best measure of how fast the system and apps load."),
             Test::GpuCompute => "Runs heavy maths in a shader on every pixel of a 1080p frame. Tracks how well the GPU handles demanding games.",
             Test::GpuFill => "Blends full 4K frames over and over. Measures how fast the GPU writes pixels to its memory.",
         }
@@ -193,7 +190,7 @@ pub fn disk_write(file: &Path, free: u64) -> Result<f64, String> {
         x ^= x << 17;
         *b = x as u8;
     }
-    let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).custom_flags(NO_BUFFERING | WRITE_THROUGH).open(file).map_err(|e| e.to_string())?;
+    let mut f = crate::platform::open_unbuffered(file, true).map_err(|e| e.to_string())?;
     let start = Instant::now();
     let mut written = 0;
     while written < total {
@@ -206,7 +203,7 @@ pub fn disk_write(file: &Path, free: u64) -> Result<f64, String> {
 
 /// Reads the test file sequentially without the cache. Returns MB/s.
 pub fn disk_read(file: &Path) -> Result<f64, String> {
-    let mut f = std::fs::OpenOptions::new().read(true).custom_flags(NO_BUFFERING).open(file).map_err(|e| e.to_string())?;
+    let mut f = crate::platform::open_unbuffered(file, false).map_err(|e| e.to_string())?;
     let mut buf = Aligned::new(CHUNK);
     let start = Instant::now();
     let mut read = 0usize;
@@ -224,7 +221,7 @@ pub fn disk_read(file: &Path) -> Result<f64, String> {
 pub fn disk_random(file: &Path) -> Result<f64, String> {
     let len = std::fs::metadata(file).map_err(|e| e.to_string())?.len();
     let blocks = (len / 4096).max(1);
-    let mut f = std::fs::OpenOptions::new().read(true).custom_flags(NO_BUFFERING).open(file).map_err(|e| e.to_string())?;
+    let mut f = crate::platform::open_unbuffered(file, false).map_err(|e| e.to_string())?;
     let mut buf = Aligned::new(4096);
     let mut x: u64 = 0x9E37_79B9;
     let start = Instant::now();
@@ -250,8 +247,11 @@ mod tests {
         assert_eq!(rating(Test::DiskRead, 500.0), "SATA SSD");
         assert_eq!(rating(Test::DiskRandom, 100.0), "Hard drive class");
         assert_eq!(rating(Test::CpuSingle, 600.0), "Excellent");
-        // Small real run through the unbuffered path.
-        let file = std::env::temp_dir().join(format!("flash-bench-test-{}.tmp", std::process::id()));
+        // Small real run through the unbuffered path. Under target/, because /tmp is often
+        // tmpfs on Linux, which has no O_DIRECT.
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(format!("flash-bench-test-{}.tmp", std::process::id()));
         assert!(disk_write(&file, 0).unwrap() > 0.0);
         assert_eq!(std::fs::metadata(&file).unwrap().len(), 256 << 20);
         assert!(disk_read(&file).unwrap() > 0.0);

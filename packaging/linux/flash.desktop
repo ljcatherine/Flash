@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Flash
+GenericName=Driver updater and PC health tool
+Comment=Driver and firmware updates, hardware health, benchmarks, cleanup and a system monitor
+Exec=flash
+Icon=flash
+Terminal=false
+Categories=System;Monitor;
+Keywords=drivers;firmware;fwupd;health;benchmark;cleanup;monitor;
+StartupWMClass=flash

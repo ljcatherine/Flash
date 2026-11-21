@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Flash for Linux runs as the user. Its helper (@HELPER@) does each privileged
+     action, and the first argument decides which of these rules applies. -->
+<policyconfig>
+  <vendor>Flash</vendor>
+  <vendor_url>https://flash.liamjc.dev</vendor_url>
+  <icon_name>flash</icon_name>
+
+  <!-- Read-only hardware details: SMART data, memory module details, crash log times. -->
+  <action id="dev.liamjc.flash.read">
+    <description>Read hardware health details</description>
+    <message>Flash wants to read drive and memory details</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPER@</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">read</annotate>
+  </action>
+
+  <!-- The kernel log and boot history, for users who can't read the journal themselves. -->
+  <action id="dev.liamjc.flash.logs">
+    <description>Read the system logs</description>
+    <message>Authentication is required for Flash to read the kernel log</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPER@</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">logs</annotate>
+  </action>
+
+  <!-- Installing drivers, snapshots, cleaning system caches, switching kernel modules. -->
+  <action id="dev.liamjc.flash.manage">
+    <description>Install drivers and change system settings</description>
+    <message>Authentication is required for Flash to change your system</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPER@</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">manage</annotate>
+  </action>
+</policyconfig>

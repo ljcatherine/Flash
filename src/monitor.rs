@@ -1,9 +1,6 @@
 //! Live system monitor: CPU, per-core load, memory, GPU, disk and network, plus which
 //! apps use them, sampled once a second while running.
 use std::collections::{HashMap, VecDeque};
-use std::io::BufRead;
-use std::os::windows::process::CommandExt;
-use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use sysinfo::{Networks, ProcessRefreshKind, ProcessesToUpdate, System};
@@ -47,36 +44,14 @@ pub struct Monitor {
     pub gpu_by_pid: HashMap<u32, f32>,
     pub gpu_total: f32,
     pub startup: Option<Vec<crate::extras::StartupApp>>,
-    pub temps: Vec<(String, f32)>, // sensor, deg C
-    pub fans: Vec<(String, f32)>,  // fan, %
+    pub temps: Vec<(String, f32)>,   // sensor, deg C
+    pub fans: Vec<(String, String)>, // fan, reading ("45%" or "1200 RPM")
     run_id: u64,
 }
 
 pub type SharedMonitor = Arc<Mutex<Monitor>>;
 
-// Windows' per-engine GPU counters, the same ones Task Manager uses. Each instance is
-// pid_<pid>_..._engtype_<type>; GPU load is the busiest engine type.
-const GPU_SCRIPT: &str = r#"
-$inv = [cultureinfo]::InvariantCulture
-while ($true) {
-  $s = (Get-Counter '\GPU Engine(*)\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples
-  $eng = @{}; $pp = @{}
-  foreach ($x in $s) {
-    if ($x.InstanceName -match 'pid_(\d+)_.*engtype_([A-Za-z0-9]+)') {
-      $eng[$Matches[2]] += $x.CookedValue
-      $k = "$($Matches[1])|$($Matches[2])"; $pp[$k] += $x.CookedValue
-    }
-  }
-  $tot = 0; foreach ($v in $eng.Values) { if ($v -gt $tot) { $tot = $v } }
-  $per = @{}
-  foreach ($k in $pp.Keys) { $p = $k.Split('|')[0]; if ($pp[$k] -gt $per[$p]) { $per[$p] = $pp[$k] } }
-  $list = ($per.GetEnumerator() | Where-Object { $_.Value -ge 0.1 } | ForEach-Object { "$($_.Key):" + ([math]::Round($_.Value, 1)).ToString($inv) }) -join ','
-  [Console]::Out.WriteLine("GPU`t" + ([math]::Round([math]::Min($tot, 100), 1)).ToString($inv) + "`t" + $list)
-  [Console]::Out.Flush()
-}
-"#;
-
-/// Parses one GPU line: total and per-process utilisation.
+/// Parses one GPU line, `GPU<TAB>total<TAB>pid:percent,...`: total and per-process utilisation.
 pub fn parse_gpu(line: &str) -> Option<(f32, HashMap<u32, f32>)> {
     let mut parts = line.trim_end().split('\t');
     if parts.next()? != "GPU" {
@@ -95,7 +70,7 @@ pub fn parse_gpu(line: &str) -> Option<(f32, HashMap<u32, f32>)> {
     Some((total, per))
 }
 
-fn alive(m: &SharedMonitor, id: u64) -> bool {
+pub(crate) fn alive(m: &SharedMonitor, id: u64) -> bool {
     let g = m.lock().unwrap();
     g.running && g.run_id == id
 }
@@ -115,41 +90,9 @@ pub fn start(m: &SharedMonitor, repaint: impl Fn() + Send + Sync + 'static) {
     };
     let repaint = Arc::new(repaint);
 
-    // GPU sampler: a hidden PowerShell that prints one line per second.
+    // GPU sampler: Windows' GPU engine counters, or DRM fdinfo, amdgpu and nvidia-smi on Linux.
     let gm = m.clone();
-    std::thread::spawn(move || {
-        let path = std::env::temp_dir().join(format!("flash-gpu-{}.ps1", std::process::id()));
-        if std::fs::write(&path, GPU_SCRIPT).is_err() {
-            return;
-        }
-        let Ok(mut child) = Command::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-            .arg(&path)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .creation_flags(0x0800_0000)
-            .spawn()
-        else {
-            return;
-        };
-        if let Some(out) = child.stdout.take() {
-            for line in std::io::BufReader::new(out).lines() {
-                let Ok(line) = line else { break };
-                if !alive(&gm, id) {
-                    break;
-                }
-                if let Some((total, per)) = parse_gpu(&line) {
-                    let mut g = gm.lock().unwrap();
-                    g.gpu_seen = true;
-                    g.gpu_total = total;
-                    g.gpu_by_pid = per;
-                }
-            }
-        }
-        child.kill().ok();
-        child.wait().ok();
-        std::fs::remove_file(&path).ok();
-    });
+    std::thread::spawn(move || crate::platform::gpu_sampler(&gm, id));
 
     // Everything else, once a second.
     let sm = m.clone();
@@ -196,26 +139,9 @@ pub fn start(m: &SharedMonitor, repaint: impl Fn() + Send + Sync + 'static) {
             }
             let (down, up) = nets.iter().fold((0u64, 0u64), |(d, u), (_, n)| (d + n.received(), u + n.transmitted()));
 
-            // Temperatures every 3 s: ACPI sensors on any PC, plus nvidia-smi on NVIDIA cards.
+            // Temperatures every 3 s: every sensor the OS exposes, plus nvidia-smi on NVIDIA cards.
             tick += 1;
-            let sensors = (tick % 3 == 1).then(|| {
-                comps.refresh(true);
-                let mut temps: Vec<(String, f32)> = comps.list().iter().filter_map(|c| c.temperature().filter(|t| *t > 0.0 && *t < 150.0).map(|t| (c.label().to_string(), t))).collect();
-                let mut fans = Vec::new();
-                let smi = crate::run_hidden("nvidia-smi", &["--query-gpu=name,temperature.gpu,fan.speed", "--format=csv,noheader,nounits"]);
-                for line in smi.lines() {
-                    let p: Vec<&str> = line.split(',').map(str::trim).collect();
-                    if p.len() == 3 {
-                        if let Ok(t) = p[1].parse::<f32>() {
-                            temps.push((format!("{} (GPU)", p[0]), t));
-                        }
-                        if let Ok(f) = p[2].parse::<f32>() {
-                            fans.push((format!("{} fan", p[0]), f));
-                        }
-                    }
-                }
-                (temps, fans)
-            });
+            let sensors = (tick % 3 == 1).then(|| crate::platform::sensors(&mut comps));
             let mut g = sm.lock().unwrap();
             if let Some((t, f)) = sensors {
                 g.temps = t;
@@ -249,12 +175,6 @@ pub fn start(m: &SharedMonitor, repaint: impl Fn() + Send + Sync + 'static) {
 
 pub fn stop(m: &SharedMonitor) {
     m.lock().unwrap().running = false;
-}
-
-/// Programs that start with Windows: (name, command, where it's registered).
-pub fn startup_apps() -> Vec<(String, String, String)> {
-    let (out, _) = crate::ps("Get-CimInstance Win32_StartupCommand | ForEach-Object { \"$($_.Name)`t$($_.Command)`t$($_.Location)\" }");
-    crate::rows(&out, 3).into_iter().map(|r| (r[0].clone(), r[1].clone(), r[2].clone())).collect()
 }
 
 #[cfg(test)]

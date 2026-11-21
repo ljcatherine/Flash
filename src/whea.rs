@@ -1,12 +1,12 @@
-//! WHEA (Windows Hardware Error Architecture) events: reads them from the System log,
-//! groups repeats, and explains each one from a built-in knowledge base.
+//! Hardware error events: WHEA-Logger events from the Windows System log, or machine
+//! checks, PCIe AER and EDAC reports from the Linux kernel log (described with the same
+//! fields), grouped and explained from a built-in knowledge base.
 //!
 //! Every WHEA-Logger event describes itself with the same few documented fields:
 //! the component (CPU core, memory, a PCI Express port...), the error source (machine
 //! check, PCIe Advanced Error Reporting, NMI...), and for CPUs the machine-check error
 //! type (cache, TLB, bus/interconnect, internal...). The knowledge base covers every
 //! value of those fields, with causes and fixes tuned for AMD or Intel.
-use crate::{ps, rows};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -42,23 +42,10 @@ pub fn parse_message(msg: &str) -> (bool, Vec<(String, String)>) {
     (fatal, fields)
 }
 
-const READ: &str = r#"
-$since = (Get-Date).AddDays(-DAYS)
-Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WHEA-Logger'; StartTime=$since} -MaxEvents 2000 -ErrorAction SilentlyContinue | ForEach-Object {
-  $_.TimeCreated.ToString('yyyy-MM-dd HH:mm') + "`t" + $_.Id + "`t" + ($_.Message -replace "`r?`n", [string][char]31)
-}
-"#;
-
-/// WHEA events from the last `days` days, newest first.
+/// Hardware error events from the last `days` days, newest first: WHEA-Logger events on
+/// Windows; machine checks, PCIe AER and EDAC memory reports on Linux.
 pub fn read(days: u32) -> Vec<Event> {
-    let (out, _) = ps(&READ.replace("DAYS", &days.to_string()));
-    rows(&out, 3)
-        .into_iter()
-        .filter_map(|r| {
-            let (fatal, fields) = parse_message(&r[2].replace('\u{1F}', "\n"));
-            Some(Event { time: r[0].clone(), id: r[1].parse().ok()?, fatal, fields })
-        })
-        .collect()
+    crate::platform::whea_read(days)
 }
 
 /// Repeats of the same error, folded together.
@@ -181,7 +168,7 @@ fn v(items: &[&str]) -> Vec<String> {
     items.iter().map(|s| s.to_string()).collect()
 }
 
-const OUTCOME_FATAL: &str = "It couldn't be corrected, so Windows stopped with a blue screen (WHEA_UNCORRECTABLE_ERROR) or the PC restarted.";
+const OUTCOME_FATAL: &str = crate::os!("It couldn't be corrected, so Windows stopped with a blue screen (WHEA_UNCORRECTABLE_ERROR) or the PC restarted.", "It couldn't be corrected, so the kernel stopped with a machine check panic or the PC restarted.");
 const OUTCOME_CORRECTED: &str = "The hardware corrected it on the fly, so nothing crashed, but repeats are an early sign of instability.";
 
 /// Explains one group of errors: what it means, why it happens, how to fix it.
@@ -200,7 +187,7 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
         "Load optimized defaults in the BIOS to rule out any overclock or undervolt.",
         "If you use Curve Optimizer, make the affected core less negative (for example -30 to -20) or turn it off.",
         "Turn PBO off while testing.",
-        "Update the BIOS to the latest version; AGESA updates fixed many WHEA errors on Ryzen.",
+        crate::os!("Update the BIOS to the latest version; AGESA updates fixed many WHEA errors on Ryzen.", "Update the BIOS to the latest version; AGESA updates fixed many machine check errors on Ryzen."),
         "Check CPU temperatures under load (HWiNFO or the System monitor page).",
         "If errors continue at full stock settings with the latest BIOS, the CPU may be faulty: contact AMD for a replacement.",
     ][..];
@@ -249,7 +236,7 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
                 "An unstable power supply",
             ]),
             fixes: v(&[
-                "Update the BIOS. AGESA updates fixed many Ryzen 5000 WHEA 18 crashes.",
+                crate::os!("Update the BIOS. AGESA updates fixed many Ryzen 5000 WHEA 18 crashes.", "Update the BIOS. AGESA updates fixed many Ryzen 5000 bus/interconnect machine check crashes."),
                 "In the BIOS, set 'Power Supply Idle Control' to 'Typical Current Idle' (it fixes crashes at idle or light load).",
                 "If memory is overclocked, set FCLK to half the memory speed (1600 MHz for DDR4-3200) or try one step slower.",
                 "Turn off PBO and Curve Optimizer while testing.",
@@ -283,7 +270,7 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
             title: "Error reported to the CPU by another component".into(),
             meaning: format!("Something outside the CPU (often memory or a PCIe device) signalled an error that reached the processor. {outcome}"),
             causes: v(&["Memory instability or a faulty module", "A PCIe device misbehaving", "Old BIOS firmware"]),
-            fixes: v(&["Update the BIOS and chipset driver.", "Test memory with Windows Memory Diagnostic (mdsched.exe).", "Reseat expansion cards and drives."]),
+            fixes: v(&[crate::os!("Update the BIOS and chipset driver.", "Update the BIOS and the kernel."), crate::os!("Test memory with Windows Memory Diagnostic (mdsched.exe).", "Test memory with memtest86+ (the Memory test button below starts it at the next restart)."), "Reseat expansion cards and drives."]),
             note: None,
         },
         Kind::CpuOther => Advice {
@@ -309,13 +296,13 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
             Advice {
                 title: "Memory error".into(),
                 meaning: if g.fatal {
-                    "The memory system hit an error it couldn't correct, so Windows stopped (blue screen). PCs without ECC memory usually only see memory errors when they're fatal.".into()
+                    crate::os!("The memory system hit an error it couldn't correct, so Windows stopped (blue screen). PCs without ECC memory usually only see memory errors when they're fatal.", "The memory system hit an error it couldn't correct, so the kernel stopped (a machine check panic). PCs without ECC memory usually only see memory errors when they're fatal.").into()
                 } else {
                     "ECC memory found and corrected a bad bit. A few are normal over years; regular ones mean a module is wearing out.".into()
                 },
                 causes,
                 fixes: v(&[
-                    "Run Windows Memory Diagnostic (press Win+R, type mdsched.exe), or MemTest86 from a USB stick for a thorough test.",
+                    crate::os!("Run Windows Memory Diagnostic (press Win+R, type mdsched.exe), or MemTest86 from a USB stick for a thorough test.", "Run memtest86+ (the Memory test button below starts it at the next restart), or MemTest86 from a USB stick for a thorough test."),
                     "Test one module at a time, and try other slots, to find a bad stick or slot.",
                     "Reseat the memory modules firmly.",
                     "Update the BIOS.",
@@ -336,14 +323,14 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
                 "The card or drive isn't fully seated",
                 "A PCIe riser cable, especially at PCIe 4.0 speeds",
                 "PCIe link power saving (ASPM) on some boards",
-                "Old chipset driver or BIOS",
+                crate::os!("Old chipset driver or BIOS", "Old kernel or BIOS"),
                 "Device firmware (SSD firmware or graphics card vBIOS)",
                 "Loose PCIe power cables to the graphics card",
             ]),
             fixes: v(&[
-                "Update the chipset driver and the BIOS.",
+                crate::os!("Update the chipset driver and the BIOS.", "Update the kernel and the BIOS."),
                 "Reseat the device named above; for graphics cards, check that both power cables are firmly in.",
-                "Turn off PCIe power saving: Control Panel > Power Options > Change plan settings > Change advanced power settings > PCI Express > Link State Power Management > Off.",
+                crate::os!("Turn off PCIe power saving: Control Panel > Power Options > Change plan settings > Change advanced power settings > PCI Express > Link State Power Management > Off.", "Turn off PCIe power saving: add pcie_aspm=off to the kernel command line (in GRUB or your boot loader settings), then restart."),
                 "Set that slot to PCIe Gen 3 in the BIOS, especially with a riser cable.",
                 "Update the device's driver and firmware (SSD makers have firmware tools).",
                 "Try a different slot.",
@@ -353,22 +340,22 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
         Kind::PciBus => Advice {
             title: "PCI bus error".into(),
             meaning: format!("A device on the PCI bus reported an error. {outcome}"),
-            causes: v(&["A card that isn't seated properly", "A failing expansion card", "Old BIOS or chipset driver"]),
-            fixes: v(&["Reseat expansion cards.", "Update the BIOS and chipset driver.", "Remove cards one at a time to find the faulty one."]),
+            causes: v(&["A card that isn't seated properly", "A failing expansion card", crate::os!("Old BIOS or chipset driver", "Old BIOS or kernel")]),
+            fixes: v(&["Reseat expansion cards.", crate::os!("Update the BIOS and chipset driver.", "Update the BIOS and the kernel."), "Remove cards one at a time to find the faulty one."]),
             note: None,
         },
         Kind::Nmi => Advice {
             title: "Non-maskable interrupt (critical hardware signal)".into(),
             meaning: format!("Hardware raised an interrupt that can't be ignored, usually for a memory, chipset or expansion card fault. {outcome}"),
             causes: v(&["Faulty memory", "A failing expansion card", "Motherboard or chipset problem", "Old BIOS"]),
-            fixes: v(&["Test memory with Windows Memory Diagnostic or MemTest86.", "Remove expansion cards that aren't needed, then add them back one by one.", "Update the BIOS."]),
+            fixes: v(&[crate::os!("Test memory with Windows Memory Diagnostic or MemTest86.", "Test memory with memtest86+ or MemTest86."), "Remove expansion cards that aren't needed, then add them back one by one.", "Update the BIOS."]),
             note: None,
         },
         Kind::Generic => Advice {
             title: "Hardware error".into(),
-            meaning: format!("Windows logged a hardware error without saying which part it came from. {outcome}"),
-            causes: v(&["An overclock or undervolt that isn't stable", "Old BIOS or chipset driver", "Overheating", "Faulty memory", "Power supply problems"]),
-            fixes: v(&["Load BIOS defaults.", "Update the BIOS and chipset driver.", "Check temperatures under load.", "Test memory with Windows Memory Diagnostic.", "Check power supply cables."]),
+            meaning: format!("{} logged a hardware error without saying which part it came from. {outcome}", crate::os!("Windows", "The kernel")),
+            causes: v(&["An overclock or undervolt that isn't stable", crate::os!("Old BIOS or chipset driver", "Old BIOS or kernel"), "Overheating", "Faulty memory", "Power supply problems"]),
+            fixes: v(&["Load BIOS defaults.", crate::os!("Update the BIOS and chipset driver.", "Update the BIOS and the kernel."), "Check temperatures under load.", crate::os!("Test memory with Windows Memory Diagnostic.", "Test memory with memtest86+."), "Check power supply cables."]),
             note: None,
         },
     };
@@ -387,7 +374,8 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
     if cpu_kind && g.count > 1 && g.apic.len() == 1 {
         let id = g.apic.iter().next().cloned().unwrap_or_default();
         let tip = if amd { " With Curve Optimizer, give that core a less negative value." } else { "" };
-        a.note = Some(format!("Every one of these came from the same CPU thread (APIC ID {id}), so one core is less stable than the rest.{tip}"));
+        let thread = crate::os!(format!("APIC ID {id}"), format!("CPU {id}"));
+        a.note = Some(format!("Every one of these came from the same CPU thread ({thread}), so one core is less stable than the rest.{tip}"));
     }
     a
 }
@@ -423,17 +411,6 @@ mod tests {
         assert_eq!(pcie.bdf, "0x2:0x0:0x0");
     }
 
-    /// Reads this PC's real log: `cargo test --lib live_log -- --ignored --nocapture`
-    #[test]
-    #[ignore]
-    fn live_log() {
-        let ctx = Context { cpu: Cpu::Amd, ram_overclocked: Some(false), arch: crate::hwkb::CpuArch::AmdZen3 };
-        for g in group(&read(90)) {
-            let a = explain(&g, &ctx);
-            println!("{} x{} id={} fatal={} [{} | {} | {}] dev={} apic={:?} {}..{}\n  => {} | first fix: {}", a.title, g.count, g.id, g.fatal, g.component, g.source, g.error_type, g.device, g.apic, g.first, g.last, a.meaning, a.fixes[0]);
-        }
-    }
-
     #[test]
     fn explains_by_kind_and_context() {
         let amd = Context { cpu: Cpu::Amd, ram_overclocked: Some(false), arch: crate::hwkb::CpuArch::AmdZen3 };
@@ -442,7 +419,7 @@ mod tests {
         assert_eq!(classify(&gs[0]), Kind::CpuBus);
         assert!(bus.title.contains("Infinity Fabric"));
         assert!(bus.fixes.iter().any(|f| f.contains("Typical Current Idle")));
-        assert!(bus.note.unwrap().contains("APIC ID 0"));
+        assert!(bus.note.unwrap().contains(crate::os!("APIC ID 0", "CPU 0")));
         let mem = explain(gs.iter().find(|g| g.id == 46).unwrap(), &amd);
         assert_eq!(mem.causes[0], "A failing RAM module"); // stock-speed RAM: hardware first
         assert!(mem.note.is_some());

@@ -1,10 +1,15 @@
 [package]
 name = "flash"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2024"
-description = "Flash: Windows driver updater and PC health tool"
+description = "Flash: driver updater and PC health tool for Windows and Linux"
 repository = "https://github.com/ljcatherine/Flash"
 license = "GPL-3.0-or-later"
+
+# The privileged Linux helper is its own crate with no dependencies, so the code that
+# runs as root stays small. `cargo build` at the root still builds only the app.
+[workspace]
+members = [".", "helper"]
 
 [dependencies]
 eframe = "0.31"
@@ -16,12 +21,21 @@ ring = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
+
+[target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Registry", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 tray-icon = "0.26.1"
 tauri-winrt-notification = "0.8.1"
 raw-window-handle = "0.6"
 
-# The bin embeds a requireAdministrator manifest, so its (empty) test harness can't start unelevated.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+# StatusNotifierItem tray (the protocol libayatana-appindicator speaks) without GTK.
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+# D-Bus notifications with action buttons.
+notify-rust = { version = "4", default-features = false, features = ["z"] }
+
+# On Windows the bin embeds a requireAdministrator manifest, so its (empty) test harness can't start unelevated.
 [[bin]]
 name = "flash"
 path = "src/main.rs"
@@ -29,3 +43,6 @@ test = false
 
 [build-dependencies]
 winresource = "0.1"
+
+[profile.release]
+strip = "debuginfo"

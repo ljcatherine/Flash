@@ -1,10 +1,10 @@
 //! UI for the extra tools: weekly scan toggle, install history, hardware knowledge, temperatures.
 use crate::{ERR, MUTED, OK, TEXT, WARN, card, kv, status};
 use eframe::egui::{self, RichText, Ui};
-use flash::{extras, health::Report, hwkb};
+use flash::{extras, health::Report, hwkb, os};
 
 fn open(url: &str) {
-    flash::run_hidden("cmd", &["/c", "start", "", url]);
+    flash::platform::open(url);
 }
 
 fn heading(ui: &mut Ui, text: &str) {
@@ -13,7 +13,7 @@ fn heading(ui: &mut Ui, text: &str) {
     ui.add_space(4.0);
 }
 
-/// 1. Weekly background scan on/off. `on` is filled lazily (one schtasks query).
+/// 1. Weekly background scan on/off. `on` is filled lazily (one schtasks / systemctl query).
 pub fn schedule(ui: &mut Ui, on: &mut Option<bool>, note: &mut String) {
     let current = *on.get_or_insert_with(extras::schedule_enabled);
     let mut want = current;
@@ -54,9 +54,9 @@ pub fn history(ui: &mut Ui, busy: bool) -> Option<usize> {
                 ui.label(RichText::new(format!("{} → {}", c.old_version, c.new_version)).monospace().color(MUTED));
                 if c.undone {
                     ui.label(RichText::new("Rolled back").color(MUTED));
-                } else if !extras::is_oem(&c.new_inf) {
-                    ui.label(RichText::new("Windows driver").color(MUTED)).on_hover_text("Built into Windows: use Device Manager's Roll Back Driver.");
-                } else if ui.add_enabled(!busy, egui::Button::new("Undo")).on_hover_text("Removes the new driver so Windows goes back to the previous one.").clicked() {
+                } else if !extras::can_undo(c) {
+                    ui.label(RichText::new(os!("Windows driver", "Not recorded")).color(MUTED)).on_hover_text(os!("Built into Windows: use Device Manager's Roll Back Driver.", "Flash didn't record how to undo this; use your package manager."));
+                } else if ui.add_enabled(!busy, egui::Button::new("Undo")).on_hover_text(os!("Removes the new driver so Windows goes back to the previous one.", "Puts back the previous version (packages and firmware) or the previous driver (modules).")).clicked() {
                     undo = Some(i);
                 }
                 ui.end_row();
@@ -67,12 +67,12 @@ pub fn history(ui: &mut Ui, busy: bool) -> Option<usize> {
 }
 
 /// 4. Temperatures and fans, with an overheating warning.
-pub fn temps(ui: &mut Ui, temps: &[(String, f32)], fans: &[(String, f32)]) {
+pub fn temps(ui: &mut Ui, temps: &[(String, f32)], fans: &[(String, String)]) {
     heading(ui, "Temperatures");
     card(ui, |ui| {
         ui.set_width(ui.available_width());
         if temps.is_empty() {
-            ui.label(RichText::new("This PC doesn't expose its temperature sensors to Windows. NVIDIA graphics cards are read automatically; for AMD or Intel graphics, use AMD Software or Intel Graphics Software.").color(MUTED));
+            ui.label(RichText::new(os!("This PC doesn't expose its temperature sensors to Windows. NVIDIA graphics cards are read automatically; for AMD or Intel graphics, use AMD Software or Intel Graphics Software.", "No hwmon temperature sensors were found. Load your board's sensor driver (run sensors-detect from lm_sensors) to see them.")).color(MUTED));
             return;
         }
         let mut hot = false;
@@ -83,7 +83,7 @@ pub fn temps(ui: &mut Ui, temps: &[(String, f32)], fans: &[(String, f32)]) {
             status(ui, if *t >= err { ERR } else if *t >= warn { WARN } else { OK }, &format!("{name}: {t:.0} °C"));
         }
         for (name, f) in fans {
-            ui.label(RichText::new(format!("{name}: {f:.0}%")).color(MUTED));
+            ui.label(RichText::new(format!("{name}: {f}")).color(MUTED));
         }
         if hot {
             ui.label(RichText::new("Running hot. Check the fans and airflow, clean dust filters, and make sure the cooler is seated properly.").color(WARN));
@@ -92,7 +92,7 @@ pub fn temps(ui: &mut Ui, temps: &[(String, f32)], fans: &[(String, f32)]) {
 }
 
 /// 7 + 9 + knowledge base: CPU and GPU profiles, BIOS age and GPU driver status.
-pub fn hardware(ui: &mut Ui, r: &Report) {
+pub fn hardware(ui: &mut Ui, r: &Report, updates: &[flash::Update]) {
     let arch = hwkb::cpu_arch(&r.cpu_name());
     let cpu = hwkb::cpu_profile(arch);
     heading(ui, "Your hardware");
@@ -132,7 +132,15 @@ pub fn hardware(ui: &mut Ui, r: &Report) {
             let gpu = hwkb::gpu_profile(kind);
             ui.add_space(12.0);
             ui.label(RichText::new(format!("{} · {}", gpu.name, name)).strong().color(TEXT));
-            if kind == hwkb::GpuKind::Nvidia {
+            // Linux: the distribution packages the driver, so compare with what it offers.
+            let package = if kind == hwkb::GpuKind::Nvidia { "NVIDIA" } else { "Mesa" };
+            let offered = updates.iter().find(|u| u.source == flash::Source::System && u.title.starts_with(package));
+            if cfg!(target_os = "linux") {
+                match offered {
+                    Some(u) => status(ui, WARN, &format!("Driver {drv} · your distribution offers {} {}: install it on the Updates page", u.title.split(" (").next().unwrap_or(&u.title), u.version)),
+                    None => status(ui, OK, &format!("Driver {drv} is the newest your distribution offers")),
+                }
+            } else if kind == hwkb::GpuKind::Nvidia {
                 let installed = extras::nvidia_version(drv).unwrap_or_default();
                 match &r.gpu_latest {
                     Some((latest, released, url)) if extras::newer(latest, &installed) => {
@@ -156,7 +164,7 @@ pub fn hardware(ui: &mut Ui, r: &Report) {
         }
         if r.display_resets > 0 {
             ui.add_space(8.0);
-            ui.label(RichText::new(format!("The graphics driver stopped responding {} time(s) in the last 30 days. See the tips above for your graphics card.", r.display_resets)).color(WARN));
+            ui.label(RichText::new(format!("The graphics driver {} {} time(s) in the last 30 days. See the tips above for your graphics card.", os!("stopped responding", "reset the GPU"), r.display_resets)).color(WARN));
         }
     });
 }

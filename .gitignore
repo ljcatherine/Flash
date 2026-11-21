@@ -1,5 +1,6 @@
 /target
 /mockups
 /dist
+/dist-linux
 .wrangler/
 /site

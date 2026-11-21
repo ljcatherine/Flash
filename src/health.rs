@@ -1,6 +1,6 @@
 //! Hardware health: a system summary, per-drive reliability counters, battery wear,
 //! and hardware error / crash events from the last 30 days.
-use crate::{ps, rows};
+use crate::rows;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DiskHealth {
@@ -35,14 +35,14 @@ pub struct Report {
     pub gpus: Vec<(String, String)>, // name, driver version
     pub disks: Vec<DiskHealth>,
     pub battery: Option<Battery>,
-    pub hardware_errors: u32,      // WHEA-Logger events
-    pub unexpected_shutdowns: u32, // Kernel-Power 41
-    pub crashes: u32,              // blue screens (BugCheck 1001)
-    pub display_resets: u32,       // 'display driver stopped responding' (Display 4101), any GPU vendor
+    pub hardware_errors: u32,      // WHEA-Logger events / MCE, AER and EDAC reports
+    pub unexpected_shutdowns: u32, // Kernel-Power 41 / boots without a clean shutdown
+    pub crashes: u32,              // blue screens (BugCheck 1001) / kernel panics (pstore)
+    pub display_resets: u32,       // 'display driver stopped responding' (Display 4101) / GPU resets in the kernel log
     pub ram_part: String,          // memory module part number
     pub ram_running: u32,          // MT/s the memory actually runs at
     pub whea: Vec<crate::whea::Group>, // hardware errors from the last 90 days, grouped
-    pub gpu_latest: Option<(String, String, String)>, // newest NVIDIA Game Ready driver: version, date, URL
+    pub gpu_latest: Option<(String, String, String)>, // newest NVIDIA Game Ready driver: version, date, URL (Windows)
 }
 
 impl Report {
@@ -64,40 +64,6 @@ impl Report {
         crate::whea::Context { cpu, ram_overclocked, arch }
     }
 }
-
-const SCRIPT: &str = r#"
-$ErrorActionPreference = 'SilentlyContinue'
-$cs = Get-CimInstance Win32_ComputerSystem
-$os = Get-CimInstance Win32_OperatingSystem
-$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
-$bios = Get-CimInstance Win32_BIOS
-$bb = Get-CimInstance Win32_BaseBoard
-$ram = @(Get-CimInstance Win32_PhysicalMemory)
-$up = (Get-Date) - $os.LastBootUpTime
-"SYS`tComputer`t$($cs.Manufacturer) $($cs.Model)"
-"SYS`tWindows`t$($os.Caption) (build $($os.BuildNumber))"
-"SYS`tProcessor`t$($cpu.Name.Trim()), $($cpu.NumberOfCores) cores / $($cpu.NumberOfLogicalProcessors) threads"
-"SYS`tMemory`t" + [math]::Round($cs.TotalPhysicalMemory / 1GB) + " GB, $($ram.Count) module(s) at $($ram[0].ConfiguredClockSpeed) MT/s"
-"SYS`tMotherboard`t$($bb.Manufacturer) $($bb.Product)"
-"SYS`tBIOS`t$($bios.Manufacturer) $($bios.SMBIOSBIOSVersion), " + $bios.ReleaseDate.ToString('yyyy-MM-dd')
-"SYS`tUptime`t$($up.Days)d $($up.Hours)h $($up.Minutes)m"
-"RAM`t$("$($ram[0].PartNumber)".Trim())`t$($ram[0].ConfiguredClockSpeed)"
-Get-CimInstance Win32_VideoController | ForEach-Object { "GPU`t$($_.Name)`t$($_.DriverVersion)" }
-Get-PhysicalDisk | ForEach-Object {
-  $r = $_ | Get-StorageReliabilityCounter
-  @('DISK', $_.FriendlyName, $_.MediaType, $_.BusType, $_.Size, $_.HealthStatus, $r.Temperature, $r.Wear, $r.ReadErrorsUncorrected, $r.PowerOnHours) -join "`t"
-}
-$d = @(Get-CimInstance -Namespace root\wmi -ClassName BatteryStaticData)
-$f = @(Get-CimInstance -Namespace root\wmi -ClassName BatteryFullChargedCapacity)
-$b = @(Get-CimInstance Win32_Battery)
-if ($d.Count -and $f.Count) { "BAT`t$($d[0].DesignedCapacity)`t$($f[0].FullChargedCapacity)`t$($b[0].EstimatedChargeRemaining)" }
-$since = (Get-Date).AddDays(-30)
-$whea = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WHEA-Logger'; StartTime=$since}).Count
-$power = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-Power'; Id=41; StartTime=$since}).Count
-$bsod = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WER-SystemErrorReporting'; Id=1001; StartTime=$since}).Count
-$tdr = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Display'; Id=4101; StartTime=$since}).Count
-"EVT`t$whea`t$power`t$bsod`t$tdr"
-"#;
 
 /// A counter of 0 usually means the drive doesn't report it.
 fn opt<T: std::str::FromStr + PartialEq + Default>(s: &str) -> Option<T> {
@@ -140,19 +106,16 @@ pub fn parse(out: &str) -> Report {
     r
 }
 
-/// Reads everything; takes a few seconds (event log queries).
+/// Reads everything; takes a few seconds (event and kernel log queries).
 pub fn read() -> Result<Report, String> {
-    let (out, err) = ps(SCRIPT);
-    let mut r = parse(&out);
+    let mut r = crate::platform::health_report()?;
     r.whea = crate::whea::group(&crate::whea::read(90));
-    if r.gpus.iter().any(|(n, _)| crate::hwkb::gpu_kind(n) == crate::hwkb::GpuKind::Nvidia) {
-        r.gpu_latest = crate::extras::latest_nvidia();
-    }
-    if r.system.is_empty() { Err(if err.trim().is_empty() { "No data returned".into() } else { err }) } else { Ok(r) }
+    r.gpu_latest = crate::platform::gpu_latest(&r);
+    Ok(r)
 }
 
 /// The speed a memory kit is sold at, read from its part number (e.g. Corsair
-/// CMW16GX4M2E3200C16, G.Skill F4-3600C16D-16GVKC). Windows only reports the
+/// CMW16GX4M2E3200C16, G.Skill F4-3600C16D-16GVKC). The OS only reports the
 /// running speed, which is the slower JEDEC default until XMP/EXPO is turned on.
 /// shortcut: only finds speeds written as 4 digits; Kingston-style "KF432" codes aren't decoded.
 pub fn rated_speed(part: &str) -> Option<u32> {
@@ -174,7 +137,7 @@ pub fn ram_slow(r: &Report) -> Option<(u32, u32)> {
 /// Plain verdict for a drive: (is_ok, words).
 pub fn disk_verdict(d: &DiskHealth) -> (bool, String) {
     if !d.status.eq_ignore_ascii_case("healthy") && !d.status.is_empty() {
-        return (false, format!("Windows reports: {}", d.status));
+        return (false, format!("{}: {}", crate::os!("Windows reports", "The drive reports"), d.status));
     }
     if d.read_errors.unwrap_or(0) > 0 {
         return (false, format!("{} uncorrected read errors", d.read_errors.unwrap_or(0)));

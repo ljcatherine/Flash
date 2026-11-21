@@ -1,0 +1,11 @@
+[package]
+name = "flash-helper"
+version = "1.2.0"
+edition = "2024"
+description = "The polkit helper Flash for Linux runs for privileged actions"
+repository = "https://github.com/ljcatherine/Flash"
+license = "GPL-3.0-or-later"
+publish = false
+
+# No dependencies on purpose: this is the only part of Flash that runs as root.
+[dependencies]
