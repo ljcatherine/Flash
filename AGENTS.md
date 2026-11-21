@@ -21,6 +21,10 @@ be updated on both websites, in the same piece of work, before calling the relea
 
 Check both live sites afterwards (`curl` the pages and look for the new version) before reporting the release as finished.
 
+## Linux version
+
+The Linux port is planned in `docs/LINUX_HANDOFF.md`: same repo, shared code, 1:1 with Windows.
+
 ## Other things to know
 
 - The app embeds a `requireAdministrator` manifest, so `cargo test` covers the library only (the bin has `test = false`).
