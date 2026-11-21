@@ -1,0 +1,686 @@
+{
+  "Devices": [
+    {
+      "DeviceId": "d324166a5e48e27ba0360ac27eeaa89559930203",
+      "InstanceIds": [
+        "DRM\\VEN_DEL&DEV_F13A"
+      ],
+      "Guid": [
+        "6e21d609-05fb-5722-8119-de841d3c833e"
+      ],
+      "Serial": "SERIAL-REMOVED",
+      "Plugin": "linux_display",
+      "VendorIds": [
+        "PNP:DEL"
+      ],
+      "Created": 1795224176
+    },
+    {
+      "DeviceId": "a29de8124928f7dc31db026069ac1d601a56056f",
+      "InstanceIds": [
+        "GPIO\\ID_AMDIF030:00"
+      ],
+      "Guid": [
+        "2d9ac22e-0ffe-5691-9e21-f9fecce8761c"
+      ],
+      "Plugin": "gpio",
+      "Flags": [
+        "can-emulation-tag"
+      ],
+      "Created": 1795224177
+    },
+    {
+      "Name": "ASUSTeK KEK Certificate",
+      "DeviceId": "364cc0a5c620e0e524aa15266840b1e147ed3b8f",
+      "ParentDeviceId": "2a4c23bfb79b5dabe474cb7b1b3e604645d6f9c6",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\CRT_B207CA37CA736AFD9836D12D447E02484F161578"
+      ],
+      "Guid": [
+        "4c15a15b-0baf-56d2-a110-5b60f3fa781a"
+      ],
+      "Plugin": "uefi_kek",
+      "Protocols": [
+        "org.uefi.dbx2"
+      ],
+      "Flags": [
+        "internal",
+        "needs-reboot",
+        "usable-during-update",
+        "updatable-hidden",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Version": "2011",
+      "VersionFormat": "number",
+      "VersionRaw": 2011,
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176,
+      "UpdateError": "No vendor ID set"
+    },
+    {
+      "Name": "ASUSTeK PK Certificate",
+      "DeviceId": "6924110cde4fa051bfdc600a60620dc7aa9d3c6a",
+      "ParentDeviceId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\CRT_0DCA64D8DA495ECDD0F5570A8C3BC61192652C31"
+      ],
+      "Guid": [
+        "936f7922-3184-54b3-bbd5-f6af26ac6faa"
+      ],
+      "Summary": "UEFI Platform Key",
+      "Plugin": "uefi_pk",
+      "Flags": [
+        "internal"
+      ],
+      "Vendor": "Unknown",
+      "Version": "2011",
+      "VersionFormat": "number",
+      "VersionRaw": 2011,
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176
+    },
+    {
+      "Name": "ASUSTeK SW Key Certificate",
+      "DeviceId": "9cac85175cb8f6f3cf099813b990e9bc84be035e",
+      "ParentDeviceId": "0352a8acc949c7df21fec16e566ba9a74e797a97",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\CRT_A641CD31A73C32B74AF9C717F249F02AEE784990"
+      ],
+      "Guid": [
+        "3b9ed13d-f0dd-5932-87d3-6bc47a649834"
+      ],
+      "Plugin": "uefi_db",
+      "Protocols": [
+        "org.uefi.dbx2"
+      ],
+      "Flags": [
+        "internal",
+        "needs-reboot",
+        "updatable-hidden",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Version": "2011",
+      "VersionFormat": "number",
+      "VersionRaw": 2011,
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176,
+      "UpdateError": "No vendor ID set"
+    },
+    {
+      "Name": "CT1000P2SSD8",
+      "DeviceId": "71b677ca0f1bc2c5b804fa1d59e52064ce589293",
+      "InstanceIds": [
+        "NVME\\VEN_C0A9&DEV_540A",
+        "NVME\\VEN_C0A9&DEV_540A&SUBSYS_C0A9540A",
+        "CT1000P2SSD8"
+      ],
+      "Guid": [
+        "024834f2-5768-5565-b929-e3f57c0fcd69",
+        "4da0af5a-3466-5105-bd08-6b090c2957fb",
+        "8950679a-2dd3-5d14-9af5-7b304e7ef6fe"
+      ],
+      "Serial": "SERIAL-REMOVED",
+      "Summary": "NVM Express solid state drive",
+      "Plugin": "nvme",
+      "Protocols": [
+        "org.nvmexpress"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "require-ac",
+        "needs-reboot",
+        "usable-during-update",
+        "can-emulation-tag"
+      ],
+      "Vendor": "Micron/Crucial Technology",
+      "VendorIds": [
+        "PCI:0xC0A9"
+      ],
+      "Version": "P2CR048 ",
+      "VersionFormat": "plain",
+      "Icons": [
+        "drive-harddisk"
+      ],
+      "Created": 1795224177
+    },
+    {
+      "Name": "GPIO controller",
+      "DeviceId": "f685512aa07369c9e77742acef941d779d31e766",
+      "InstanceIds": [
+        "GPIO\\ID_AMDI0030:00"
+      ],
+      "Guid": [
+        "37b440a9-2473-5087-a39b-db84f32a8ed8"
+      ],
+      "Plugin": "gpio",
+      "Flags": [
+        "can-emulation-tag"
+      ],
+      "Created": 1795224177
+    },
+    {
+      "Name": "KEK CA",
+      "DeviceId": "b7a1d3d90faa1f6275d9a98da4fb3be7118e61c7",
+      "ParentDeviceId": "2a4c23bfb79b5dabe474cb7b1b3e604645d6f9c6",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\VENDOR_Microsoft&NAME_Microsoft-KEK-CA",
+        "UEFI\\CRT_DEC64D7746D983DB3774829A00BF829D9F19E9CF"
+      ],
+      "Guid": [
+        "814e950f-1449-566a-a190-42c9d3a3a2df",
+        "cd94ec34-7163-5f27-8549-1bd4b7872ae8"
+      ],
+      "DetailsUrl": "https://fwupd.github.io/libfwupdplugin/uefi-db.html",
+      "Plugin": "uefi_kek",
+      "Protocols": [
+        "org.uefi.dbx2"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "needs-reboot",
+        "usable-during-update",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Vendor": "Microsoft",
+      "VendorIds": [
+        "UEFI:Microsoft"
+      ],
+      "Version": "2023",
+      "VersionFormat": "number",
+      "VersionRaw": 2023,
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176
+    },
+    {
+      "Name": "Option ROM UEFI CA",
+      "DeviceId": "92120fc1a625f725901333cbfec152b8d6e42d43",
+      "ParentDeviceId": "0352a8acc949c7df21fec16e566ba9a74e797a97",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\VENDOR_Microsoft&NAME_Microsoft-Option-ROM-UEFI-CA",
+        "UEFI\\CRT_F45B559FC1C60F31B3071021298D5ED7D77280B0"
+      ],
+      "Guid": [
+        "ca4668d9-734f-5b2b-aae8-8120b196f659",
+        "965d1919-0e18-5b63-9ebd-e5d122cd11df"
+      ],
+      "Plugin": "uefi_db",
+      "Protocols": [
+        "org.uefi.dbx2"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "needs-reboot",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Vendor": "Microsoft",
+      "VendorIds": [
+        "UEFI:Microsoft"
+      ],
+      "Version": "2023",
+      "VersionFormat": "number",
+      "VersionRaw": 2023,
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176
+    },
+    {
+      "Name": "Ryzen 5 5600 6-Core Processor",
+      "DeviceId": "4bde70ba4e39b28f9eab1628f9dd6e6244c03027",
+      "InstanceIds": [
+        "CPUID\\PRO_0&FAM_19&MOD_21",
+        "CPUID\\PRO_0&FAM_19&MOD_21&STP_2"
+      ],
+      "Guid": [
+        "af6af62f-513f-5d1b-8c80-23c44eafbe19",
+        "066e2405-0349-51a6-be7f-923dbd4e9873"
+      ],
+      "Plugin": "cpu",
+      "Flags": [
+        "internal"
+      ],
+      "Vendor": "AMD",
+      "VersionFormat": "hex",
+      "Icons": [
+        "computer"
+      ],
+      "Created": 1795224176
+    },
+    {
+      "Name": "SSD 990 PRO with Heatsink 1TB",
+      "DeviceId": "8e92eda1ab953dd9f27d11cd320c36e5d1127030",
+      "InstanceIds": [
+        "NVME\\VEN_144D&DEV_A80C",
+        "NVME\\VEN_144D&DEV_A80C&SUBSYS_144DA801",
+        "Samsung SSD 990 PRO with Heatsink 1TB"
+      ],
+      "Guid": [
+        "e693e1a0-df3d-53da-9855-40205fd88f5e",
+        "2967aa12-dfe5-5a2e-8345-7161c98f544b",
+        "af870592-881d-5d31-888c-a37cfb535e73"
+      ],
+      "Serial": "SERIAL-REMOVED",
+      "Summary": "NVM Express solid state drive",
+      "Plugin": "nvme",
+      "Protocols": [
+        "org.nvmexpress"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "require-ac",
+        "needs-reboot",
+        "usable-during-update",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Vendor": "Samsung",
+      "VendorIds": [
+        "PCI:0x144D"
+      ],
+      "Version": "5B2QJXD7",
+      "VersionFormat": "plain",
+      "Icons": [
+        "drive-harddisk"
+      ],
+      "Created": 1795224177
+    },
+    {
+      "Name": "SanDisk 3.2Gen1",
+      "DeviceId": "3c6e205fdcccd608a3da0bddf1dc7215989baa03",
+      "InstanceIds": [
+        "BLOCK\\VEN_0781&DEV_5583",
+        "SCSI\\VEN_USB&DEV_SanDisk-3.2Gen1",
+        "SCSI\\VEN_USB&DEV_SanDisk-3.2Gen1&REV_1.00"
+      ],
+      "Guid": [
+        "16b540b1-961e-56d5-953b-558e4bdde93c",
+        "b861e037-c38d-56ea-adaf-b2325ee6b96b",
+        "9d4068a9-9553-59a2-ad7f-b19922d584b1"
+      ],
+      "Summary": "SCSI device",
+      "Plugin": "scsi",
+      "Flags": [
+        "can-emulation-tag"
+      ],
+      "Vendor": "USB",
+      "VendorIds": [
+        "USB:0x0781",
+        "SCSI:USB"
+      ],
+      "Version": "1.00",
+      "VersionFormat": "plain",
+      "Icons": [
+        "drive-harddisk"
+      ],
+      "Created": 1795224176
+    },
+    {
+      "Name": "Secure Processor",
+      "DeviceId": "c54ab0237d7a8db8c717b68e0be78e4374a2a079",
+      "ParentDeviceId": "4bde70ba4e39b28f9eab1628f9dd6e6244c03027",
+      "CompositeId": "4bde70ba4e39b28f9eab1628f9dd6e6244c03027",
+      "InstanceIds": [
+        "PCI\\VEN_1022&DEV_1486"
+      ],
+      "Guid": [
+        "bb3bed27-5f4a-554a-87c4-b52ba58e58eb"
+      ],
+      "Plugin": "pci_psp",
+      "Flags": [
+        "internal",
+        "can-emulation-tag"
+      ],
+      "Vendor": "AMD",
+      "VendorIds": [
+        "PCI:0x1022"
+      ],
+      "VersionFormat": "plain",
+      "Icons": [
+        "computer"
+      ],
+      "Created": 1795224177
+    },
+    {
+      "Name": "System Firmware",
+      "DeviceId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "Guid": [
+        "2bc69c58-a88c-5ca6-a503-74dee58ff9b4"
+      ],
+      "Summary": "UEFI System Resource Table device (updated via NVRAM)",
+      "Plugin": "uefi_capsule",
+      "Protocols": [
+        "org.uefi.capsule"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "require-ac",
+        "needs-reboot",
+        "can-verify",
+        "usable-during-update"
+      ],
+      "RequestFlags": [
+        "allow-generic-message"
+      ],
+      "Checksums": [
+        "a07842c37f9063fc048d0ca9e19c95427e793e4b78059ffce32112f10711d3f2"
+      ],
+      "Vendor": "ASUS",
+      "VendorIds": [
+        "DMI:American Megatrends Inc."
+      ],
+      "Version": "13876",
+      "VersionLowest": "13876",
+      "VersionFormat": "number",
+      "VersionRaw": 13876,
+      "VersionLowestRaw": 13876,
+      "Icons": [
+        "computer"
+      ],
+      "Created": 1795224176,
+      "UpdateState": 2,
+      "InstanceIds": []
+    },
+    {
+      "Name": "TPM",
+      "DeviceId": "1d8d50a4dbc65618f5c399c2ae827b632b3ccc11",
+      "InstanceIds": [
+        "TPM\\VEN_AMD&DEV_0001",
+        "TPM\\VEN_AMD&MOD_AMD",
+        "TPM\\VEN_AMD&DEV_0001&VER_2.0",
+        "TPM\\VEN_AMD&MOD_AMD&VER_2.0"
+      ],
+      "Guid": [
+        "9305de1c-1e12-5665-81c4-37f8e51219b8",
+        "78a291ae-b499-5b0f-8f1d-74e1fefd0b1c",
+        "65a3fced-b423-563f-8098-bf5c329fc063",
+        "5e704f0d-83cb-5364-8384-f46d725a23b8"
+      ],
+      "Plugin": "tpm",
+      "Protocols": [
+        "org.trustedcomputinggroup.tpm2"
+      ],
+      "Flags": [
+        "internal",
+        "require-ac",
+        "needs-reboot",
+        "self-recovery",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Vendor": "AMD",
+      "VendorIds": [
+        "TPM:AMD"
+      ],
+      "Version": "3.94.2.5",
+      "VersionFormat": "quad",
+      "VersionRaw": 844828657188869,
+      "Icons": [
+        "computer"
+      ],
+      "Created": 1795224176
+    },
+    {
+      "Name": "UEFI CA",
+      "DeviceId": "5bc922b7bd1adb5b6f99592611404036bd9f42d0",
+      "ParentDeviceId": "0352a8acc949c7df21fec16e566ba9a74e797a97",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\VENDOR_Microsoft&NAME_Microsoft-UEFI-CA",
+        "UEFI\\CRT_7CD7437C555F89E7C2B50E21937E420C4E583E80"
+      ],
+      "Guid": [
+        "26f42cba-9bf6-5365-802b-e250eb757e96",
+        "308281c7-d0c5-52e0-8c1a-810540de03df"
+      ],
+      "DetailsUrl": "https://fwupd.github.io/libfwupdplugin/uefi-db.html",
+      "Plugin": "uefi_db",
+      "Protocols": [
+        "org.uefi.dbx2"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "supported",
+        "needs-reboot",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Vendor": "Microsoft",
+      "VendorIds": [
+        "UEFI:Microsoft"
+      ],
+      "Version": "2023",
+      "VersionFormat": "number",
+      "VersionRaw": 2023,
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176,
+      "Releases": [
+        {
+          "AppstreamId": "com.microsoft.db-uefi-3p.firmware",
+          "ReleaseId": "116503",
+          "RemoteId": "lvfs",
+          "Name": "Secure Boot Signature Database",
+          "Summary": "UEFI Secure Boot Signature Database",
+          "Description": "<p>This updates the 3rd Party UEFI Signature Database (the &quot;db&quot;) to the latest release from Microsoft.It also adds the latest OptionROM UEFI Signature Database update.</p>",
+          "Version": "2023",
+          "Filename": "DBUpdate-3P2023_OROM2023.cab",
+          "Protocol": "org.uefi.dbx2",
+          "Categories": [
+            "X-Configuration",
+            "X-System"
+          ],
+          "Checksum": [
+            "eadea872bb9176564543e172660c832920d02a3f",
+            "43c643208621eebd2342066225555735fa514304172ac3cd258652ab7858e304"
+          ],
+          "Tags": [
+            "uefi-secure-boot"
+          ],
+          "License": "LicenseRef-proprietary",
+          "Size": 10023,
+          "Created": 1745884800,
+          "Locations": [
+            "https://fwupd.org/downloads/43c643208621eebd2342066225555735fa514304172ac3cd258652ab7858e304-DBUpdate-3P2023_OROM2023.cab"
+          ],
+          "Homepage": "https://fwupd.github.io/libfwupdplugin/uefi-db.html",
+          "Vendor": "Microsoft",
+          "Flags": [
+            "trusted-metadata"
+          ],
+          "Reports": [
+            {
+              "DeviceName": "LENOVO ThinkPad P15v Gen 1",
+              "DistroId": "ubuntu",
+              "DistroVersion": "25.10",
+              "VersionOld": "2011",
+              "Vendor": "Lenovo",
+              "RemoteId": "lvfs",
+              "VendorId": 84,
+              "Flags": [
+                "is-upgrade"
+              ],
+              "RuntimeVersion(org.freedesktop.fwupd)": "2.0.16"
+            },
+            {
+              "DeviceName": "Framework Laptop 16 (AMD Ryzen 7040 Series)",
+              "DistroId": "fedora",
+              "DistroVariant": "workstation",
+              "DistroVersion": "42",
+              "VersionOld": "2011",
+              "Vendor": "Framework",
+              "RemoteId": "lvfs",
+              "VendorId": 438,
+              "Flags": [
+                "is-upgrade"
+              ],
+              "RuntimeVersion(org.freedesktop.fwupd)": "2.0.16"
+            },
+            {
+              "DeviceName": "Framework Laptop (12th Gen Intel Core)",
+              "DistroId": "fedora",
+              "DistroVariant": "workstation",
+              "DistroVersion": "42",
+              "VersionOld": "2011",
+              "Vendor": "Framework",
+              "RemoteId": "lvfs",
+              "VendorId": 438,
+              "Flags": [
+                "is-upgrade"
+              ],
+              "RuntimeVersion(org.freedesktop.fwupd)": "2.0.16"
+            },
+            {
+              "DeviceName": "Framework Laptop 13 (Intel Core Ultra Series 1)",
+              "DistroId": "nixos",
+              "DistroVersion": "25.11",
+              "VersionOld": "2011",
+              "Vendor": "Framework",
+              "RemoteId": "lvfs",
+              "VendorId": 438,
+              "Flags": [
+                "is-upgrade"
+              ],
+              "RuntimeVersion(org.freedesktop.fwupd)": "2.0.12"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "Name": "UEFI Key Exchange Key",
+      "DeviceId": "2a4c23bfb79b5dabe474cb7b1b3e604645d6f9c6",
+      "ParentDeviceId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "Plugin": "uefi_kek",
+      "Flags": [
+        "internal"
+      ],
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176,
+      "InstanceIds": []
+    },
+    {
+      "Name": "UEFI Signature Database",
+      "DeviceId": "0352a8acc949c7df21fec16e566ba9a74e797a97",
+      "ParentDeviceId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "Plugin": "uefi_db",
+      "Flags": [
+        "internal"
+      ],
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176,
+      "InstanceIds": []
+    },
+    {
+      "Name": "UEFI dbx",
+      "DeviceId": "362301da643102b9f38477387e2193e57abaa590",
+      "ParentDeviceId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\CRT_D7F66BE77CEF858C174BF4338A99263C8795B74E02026411F5F532F716AE3263&ARCH_X64",
+        "UEFI\\CRT_A1117F516A32CEFCBA3F2D1ACE10A87972FD6BBE8FE0D0B996E09E65D802A503&ARCH_X64",
+        "UEFI\\CRT_3CD3F0309EDAE228767A976DD40D9F4AFFC4FBD5218F2E8CC3C9DD97E8AC6F9D&ARCH_X64"
+      ],
+      "Guid": [
+        "f8ff0d50-c757-5dc3-951a-39d86e16f419",
+        "f8ba2887-9411-5c36-9cee-88995bb39731",
+        "d07ff664-b0e1-5f4e-a723-d7fbcbfcb94f"
+      ],
+      "Summary": "UEFI revocation database 2ea557c4",
+      "DetailsUrl": "https://uefi.org/revocationlistfile",
+      "Plugin": "uefi_dbx",
+      "Protocols": [
+        "org.uefi.dbx2"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "supported",
+        "needs-reboot",
+        "usable-during-update",
+        "only-version-upgrade",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Checksums": [
+        "2ea557c44b83c0ad6b71efb7edcc18b6337ad1c1d682155dd9451b051b62ff40"
+      ],
+      "Vendor": "Microsoft",
+      "VendorIds": [
+        "UEFI:Microsoft"
+      ],
+      "VersionFormat": "number",
+      "Icons": [
+        "application-certificate"
+      ],
+      "InstallDuration": 1,
+      "Created": 1795224176
+    },
+    {
+      "Name": "Windows UEFI CA",
+      "DeviceId": "d31da5f926c6d962ed810b284fab5a2ef623007b",
+      "ParentDeviceId": "0352a8acc949c7df21fec16e566ba9a74e797a97",
+      "CompositeId": "efae93fdc9599c7c714d914d2c5ea75115c00482",
+      "InstanceIds": [
+        "UEFI\\VENDOR_Microsoft&NAME_Windows-UEFI-CA",
+        "UEFI\\CRT_A794240D25F0CCB2EC8142DC2F7411890717DEAD"
+      ],
+      "Guid": [
+        "914015a8-9d92-5462-9a9b-f2b361e4faae",
+        "89a825bf-78b5-5f1c-905b-e982b2f02584"
+      ],
+      "DetailsUrl": "https://fwupd.github.io/libfwupdplugin/uefi-db.html",
+      "Plugin": "uefi_db",
+      "Protocols": [
+        "org.uefi.dbx2"
+      ],
+      "Flags": [
+        "internal",
+        "updatable",
+        "needs-reboot",
+        "signed-payload",
+        "can-emulation-tag"
+      ],
+      "Vendor": "Microsoft",
+      "VendorIds": [
+        "UEFI:Microsoft"
+      ],
+      "Version": "2023",
+      "VersionFormat": "number",
+      "VersionRaw": 2023,
+      "Icons": [
+        "application-certificate"
+      ],
+      "Created": 1795224176
+    }
+  ]
+}

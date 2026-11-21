@@ -80,6 +80,15 @@ fn activated(action: Option<String>) -> tauri_winrt_notification::Result<()> {
     Ok(())
 }
 
+/// Flash's own native window, for hiding and showing it outside egui.
+fn window_handle(frame: &eframe::Frame) -> Option<isize> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match frame.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(w) => Some(w.hwnd.get()),
+        _ => None,
+    }
+}
+
 pub struct Tray {
     icon: Option<TrayIcon>,
 }
@@ -104,7 +113,8 @@ impl Tray {
 
     /// Hides the window to the notification area and says so in a notification.
     /// Returns false (window left open) if the tray icon can't be created.
-    pub fn hide(&mut self, hwnd: isize) -> bool {
+    pub fn hide(&mut self, _ctx: &eframe::egui::Context, frame: &eframe::Frame) -> bool {
+        let Some(hwnd) = window_handle(frame) else { return false };
         HWND.store(hwnd, SeqCst);
         if self.icon.is_none() {
             self.icon = build_icon();

@@ -1,0 +1,35 @@
+# Not captured from a machine: this PC has no hardware errors logged. Each line follows the
+# printk format of the kernel code that writes it (journalctl -k -o short-iso):
+# arch/x86/kernel/cpu/mce/core.c, drivers/edac/mce_amd.c, drivers/pci/pcie/aer.c,
+# drivers/edac/edac_mc.c, drivers/acpi/apei/ghes.c, NVIDIA's NVRM and amdgpu.
+2026-11-09T17:54:12+11:00 pc kernel: mce: [Hardware Error]: Machine check events logged
+2026-11-09T17:54:12+11:00 pc kernel: [Hardware Error]: Corrected error, no action required.
+2026-11-09T17:54:12+11:00 pc kernel: [Hardware Error]: CPU:2 (19:21:2) MC5_STATUS[-|CE|MiscV|-|-|-|-|-|-]: 0x9c00000000070f0f
+2026-11-09T17:54:12+11:00 pc kernel: [Hardware Error]: IPID: 0x000500b000000000
+2026-11-09T17:54:12+11:00 pc kernel: [Hardware Error]: Execution Unit Ext. Error Code: 7
+2026-11-09T17:54:12+11:00 pc kernel: [Hardware Error]: cache level: L3/GEN, mem/io: GEN, mem-tx: GEN, part-proc: SRC (no timeout)
+2026-11-10T10:00:00+11:00 pc kernel: pcieport 0000:00:01.1: AER: Correctable error message received from 0000:01:00.0
+2026-11-10T10:00:00+11:00 pc kernel: nvme 0000:01:00.0: PCIe Bus Error: severity=Correctable, type=Physical Layer, (Receiver ID)
+2026-11-10T10:00:00+11:00 pc kernel: nvme 0000:01:00.0:   device [144d:a80c] error status/mask=00000001/0000e000
+2026-11-10T10:00:00+11:00 pc kernel: nvme 0000:01:00.0:    [ 0] RxErr                  (First)
+2026-11-12T09:00:03+11:00 pc kernel: mce: [Hardware Error]: Machine check events logged
+2026-11-12T09:00:03+11:00 pc kernel: [Hardware Error]: Corrected error, no action required.
+2026-11-12T09:00:03+11:00 pc kernel: [Hardware Error]: CPU:2 (19:21:2) MC5_STATUS[-|CE|MiscV|-|-|-|-|-|-]: 0x9c00000000070f0f
+2026-11-12T09:00:03+11:00 pc kernel: [Hardware Error]: IPID: 0x000500b000000000
+2026-11-13T21:14:40+11:00 pc kernel: mce: [Hardware Error]: CPU 5: Machine Check: 0 Bank 1: 9c20000000080110
+2026-11-13T21:14:40+11:00 pc kernel: mce: [Hardware Error]: TSC 0 ADDR 7f3a52c41000 MISC d012000100000000
+2026-11-13T21:14:40+11:00 pc kernel: mce: [Hardware Error]: PROCESSOR 0:a0671 TIME 1794557680 SOCKET 0 APIC a microcode 62
+2026-11-14T03:00:00+11:00 pc kernel: mce: [Hardware Error]: Machine check events logged
+2026-11-15T08:30:00+11:00 pc kernel: pcieport 0000:00:03.1: PCIe Bus Error: severity=Uncorrected (Non-Fatal), type=Transaction Layer, (Requester ID)
+2026-11-15T08:30:00+11:00 pc kernel: pcieport 0000:00:03.1:   device [1022:1483] error status/mask=00004000/00400000
+2026-11-16T20:29:01+11:00 pc kernel: EDAC MC0: 2 CE on mc#0csrow#1channel#0 (csrow:1 channel:0 page:0x12345 offset:0x0 grain:64 syndrome:0x1a2b)
+2026-11-17T06:00:00+11:00 pc kernel: {1}[Hardware Error]: Hardware error from APEI Generic Hardware Error Source: 0
+2026-11-17T06:00:00+11:00 pc kernel: {1}[Hardware Error]: It has been corrected by h/w and requires no further action
+2026-11-17T06:00:00+11:00 pc kernel: {1}[Hardware Error]: event severity: corrected
+2026-11-17T06:00:00+11:00 pc kernel: {1}[Hardware Error]:  Error 0, type: corrected
+2026-11-17T06:00:00+11:00 pc kernel: {1}[Hardware Error]:   section_type: memory error
+2026-11-17T06:00:00+11:00 pc kernel: {1}[Hardware Error]:   physical_address: 0x0000000823cbc000
+2026-11-18T22:01:00+11:00 pc kernel: NVRM: Xid (PCI:0000:0b:00): 79, pid=1234, name=Xwayland, GPU has fallen off the bus.
+2026-11-19T12:00:00+11:00 pc kernel: amdgpu 0000:03:00.0: amdgpu: GPU reset begin!
+2026-11-19T12:00:01+11:00 pc kernel: amdgpu 0000:03:00.0: amdgpu: GPU reset(2) succeeded!
+2026-11-20T09:00:00+11:00 pc kernel: r8169 0000:0a:00.0 eth0: Link is Up - 1Gbps/Full - flow control rx/tx

@@ -1,24 +1,12 @@
 //! Updates to Flash itself, independent of the driver update sources.
-use base64::Engine;
+use crate::platform::InstallKind;
 use ring::digest::{Context, SHA256};
 use serde::Deserialize;
-use std::ffi::OsString;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{Read, Write};
-use std::os::windows::{ffi::OsStringExt, process::CommandExt};
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::PathBuf;
 use std::time::Duration;
 use tempfile::TempDir;
-use windows_sys::Win32::{
-    System::{
-        Com::CoTaskMemFree,
-        Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ, RRF_SUBKEY_WOW6464KEY, RegGetValueW},
-        SystemInformation::GetSystemDirectoryW,
-    },
-    UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath},
-};
-use windows_sys::w;
 
 const REPOSITORY: &str = "https://github.com/ljcatherine/Flash";
 const LATEST: &str = "https://api.github.com/repos/ljcatherine/Flash/releases/latest";
@@ -45,21 +33,44 @@ pub struct Available {
     pub version: String,
     pub notes: String,
     package: Option<Package>,
+    kind: InstallKind,
 }
 
 impl Available {
     pub fn can_install(&self) -> bool {
         self.package.is_some()
     }
+
+    /// Why Flash can't install this release itself.
+    pub fn manual_note(&self) -> String {
+        match &self.kind {
+            InstallKind::Managed(how) => (*how).to_string(),
+            _ => "This release has no verifiable package for your installation. Download it from the release page.".into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
-struct Package {
+pub(crate) struct Package {
     url: String,
-    filename: String,
+    pub(crate) filename: String,
     size: u64,
-    digest: String,
-    installed: bool,
+    pub(crate) digest: String,
+    pub(crate) kind: InstallKind,
+}
+
+/// The release asset for an installation of this kind and CPU architecture.
+pub fn asset_name(kind: &InstallKind, version: &str, arch: &str) -> Option<String> {
+    let deb_arch = if arch == "aarch64" { "arm64" } else { "amd64" };
+    match kind {
+        InstallKind::Msi => Some(format!("Flash-{version}-x64.msi")),
+        InstallKind::Exe => Some(format!("Flash-{version}-x64.exe")),
+        InstallKind::AppImage(_) => Some(format!("Flash-{version}-{arch}.AppImage")),
+        InstallKind::Deb => Some(format!("flash_{version}_{deb_arch}.deb")),
+        InstallKind::Rpm => Some(format!("flash-{version}.{arch}.rpm")),
+        InstallKind::Tarball(_) => Some(format!("flash-{version}-{arch}.tar.gz")),
+        InstallKind::Managed(_) => None,
+    }
 }
 
 fn version(text: &str) -> Option<[u16; 3]> {
@@ -81,7 +92,7 @@ fn version(text: &str) -> Option<[u16; 3]> {
 fn parse_release(
     release: Release,
     current: &str,
-    installed: bool,
+    kind: InstallKind,
 ) -> Result<Option<Available>, String> {
     let current = version(current).ok_or("This build does not use a stable version number.")?;
     if release.draft || release.prerelease {
@@ -92,10 +103,10 @@ fn parse_release(
     if version(published).ok_or("Invalid Flash release version.")? <= current {
         return Ok(None);
     }
-    let extension = if installed { "msi" } else { "exe" };
-    let filename = format!("Flash-{published}-x64.{extension}");
+    let filename = asset_name(&kind, published, std::env::consts::ARCH).unwrap_or_default();
     let package = release.assets.into_iter().find_map(|asset| {
-        if asset.name != filename
+        if filename.is_empty()
+            || asset.name != filename
             || asset.state != "uploaded"
             || !(1..=MAX_ASSET).contains(&asset.size)
         {
@@ -110,13 +121,14 @@ fn parse_release(
             filename: filename.clone(),
             size: asset.size,
             digest: digest.to_ascii_lowercase(),
-            installed,
+            kind: kind.clone(),
         })
     });
     Ok(Some(Available {
         version: published.into(),
         notes: format!("{REPOSITORY}/releases/tag/{tag}"),
         package,
+        kind,
     }))
 }
 
@@ -144,64 +156,7 @@ pub fn check() -> Result<Option<Available>, String> {
     }
     let release = serde_json::from_reader(response.into_reader().take(2 * 1024 * 1024))
         .map_err(|_| "GitHub returned unreadable release information.")?;
-    parse_release(
-        release,
-        env!("CARGO_PKG_VERSION"),
-        installed_path(&exe).is_some(),
-    )
-}
-
-fn installed_path(exe: &Path) -> Option<PathBuf> {
-    let mut value = vec![0_u16; 32768];
-    let mut size = (value.len() * size_of::<u16>()) as u32;
-    // The per-machine MSI writes this value in the 64-bit registry view.
-    let result = unsafe {
-        RegGetValueW(
-            HKEY_LOCAL_MACHINE,
-            w!("Software\\Flash"),
-            w!("InstalledExe"),
-            RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY,
-            std::ptr::null_mut(),
-            value.as_mut_ptr().cast(),
-            &mut size,
-        )
-    };
-    if result != 0 || size < 2 {
-        return None;
-    }
-    let registered = OsString::from_wide(&value[..size as usize / 2 - 1]);
-    let registered = PathBuf::from(registered);
-    (fs::canonicalize(&registered).ok()? == fs::canonicalize(exe).ok()?).then_some(registered)
-}
-
-fn program_files() -> std::io::Result<PathBuf> {
-    let mut path = std::ptr::null_mut();
-    // Windows allocates the returned NUL-terminated path with CoTaskMemAlloc.
-    let result =
-        unsafe { SHGetKnownFolderPath(&FOLDERID_ProgramFiles, 0, std::ptr::null_mut(), &mut path) };
-    if result < 0 || path.is_null() {
-        return Err(std::io::Error::other(
-            "Windows could not locate Program Files.",
-        ));
-    }
-    let folder = unsafe {
-        let len = (0..).find(|&index| *path.add(index) == 0).unwrap();
-        let folder = OsString::from_wide(std::slice::from_raw_parts(path, len));
-        CoTaskMemFree(path.cast());
-        folder
-    };
-    Ok(folder.into())
-}
-
-fn system_directory() -> std::io::Result<PathBuf> {
-    let mut path = [0_u16; 260];
-    let len = unsafe { GetSystemDirectoryW(path.as_mut_ptr(), path.len() as u32) } as usize;
-    if len == 0 || len >= path.len() {
-        return Err(std::io::Error::other(
-            "Windows could not locate its system directory.",
-        ));
-    }
-    Ok(PathBuf::from(OsString::from_wide(&path[..len])))
+    parse_release(release, env!("CARGO_PKG_VERSION"), crate::platform::install_kind(&exe))
 }
 
 fn asset_response(agent: &ureq::Agent, url: &str) -> Result<ureq::Response, String> {
@@ -275,17 +230,17 @@ pub fn download(update: &Available) -> Result<Downloaded, String> {
         .clone()
         .ok_or("This release has no verifiable package.")?;
     let exe = std::env::current_exe().map_err(|err| err.to_string())?;
-    let installed = installed_path(&exe);
-    if package.installed != installed.is_some() {
+    if package.kind != crate::platform::install_kind(&exe) {
         return Err("The installation changed. Check for updates again.".into());
     }
-    let exe = installed.unwrap_or(exe);
+    let exe = crate::platform::installed_exe(&exe);
     let response = asset_response(&agent(120), &package.url)?;
-    // Flash already runs elevated. Keep the payload under Program Files so a
-    // standard user cannot replace it between verification and installation.
+    // Windows: under Program Files, so a standard user cannot replace it between
+    // verification and installation. Linux: a private folder of the user's; a package
+    // install is checked against the digest again by the root helper.
     let directory = tempfile::Builder::new()
         .prefix("Flash-update-")
-        .tempdir_in(program_files().map_err(|err| err.to_string())?)
+        .tempdir_in(crate::platform::update_dir().map_err(|err| err.to_string())?)
         .map_err(|err| format!("Could not create the update directory: {err}"))?;
     let path = directory.path().join(&package.filename);
     let mut file = File::create_new(&path).map_err(|err| err.to_string())?;
@@ -306,35 +261,9 @@ pub fn download(update: &Available) -> Result<Downloaded, String> {
 }
 
 impl Downloaded {
+    /// Starts installing the verified download. Flash closes afterwards.
     pub fn apply(self) -> std::io::Result<()> {
-        let system = system_directory()?;
-        let powershell = system.join(r"WindowsPowerShell\v1.0\powershell.exe");
-        let script: Vec<u8> = include_str!("apply_update.ps1")
-            .encode_utf16()
-            .flat_map(u16::to_le_bytes)
-            .collect();
-        // Only fixed source code goes on the command line. Paths and release
-        // data are passed as values, never interpolated into the script.
-        Command::new(powershell)
-            .args(["-NoProfile", "-NonInteractive", "-EncodedCommand"])
-            .arg(base64::engine::general_purpose::STANDARD.encode(script))
-            .env(
-                "PSModulePath",
-                system.join(r"WindowsPowerShell\v1.0\Modules"),
-            )
-            .env("FLASH_UPDATE_EXE", &self.exe)
-            .env("FLASH_UPDATE_PATH", &self.path)
-            .env("FLASH_UPDATE_HASH", &self.package.digest)
-            .env("FLASH_UPDATE_VERSION", env!("CARGO_PKG_VERSION"))
-            .env(
-                "FLASH_UPDATE_KIND",
-                if self.package.installed { "msi" } else { "exe" },
-            )
-            .env("FLASH_UPDATE_PARENT", std::process::id().to_string())
-            .env("FLASH_UPDATE_SYSTEM", &system)
-            .current_dir(system)
-            .creation_flags(crate::NO_WINDOW)
-            .spawn()?;
+        crate::platform::apply_update(&self.exe, &self.path, &self.package.digest, &self.package.kind)?;
         // The helper owns cleanup after this process closes.
         let _ = self.directory.keep();
         Ok(())
@@ -346,9 +275,11 @@ mod tests {
     use super::*;
 
     fn release(tag: &str) -> Release {
-        let assets = ["exe", "msi"].map(|ext| {
+        let arch = std::env::consts::ARCH;
+        let names = ["Flash-1.10.0-x64.exe".to_string(), "Flash-1.10.0-x64.msi".to_string(), format!("Flash-1.10.0-{arch}.AppImage"), "flash_1.10.0_amd64.deb".into(), format!("flash-1.10.0.{arch}.rpm"), format!("flash-1.10.0-{arch}.tar.gz")];
+        let assets = names.map(|name| {
             serde_json::json!({
-                "name": format!("Flash-1.10.0-x64.{ext}"),
+                "name": name,
                 "size": 8,
                 "state": "uploaded",
                 "digest": format!("sha256:{}", "a".repeat(64)),
@@ -363,41 +294,36 @@ mod tests {
 
     #[test]
     fn chooses_the_matching_package_and_compares_versions_numerically() {
-        for (installed, ext) in [(true, "msi"), (false, "exe")] {
-            let update = parse_release(release("v1.10.0"), "1.9.9", installed)
-                .unwrap()
-                .unwrap();
-            assert_eq!(
-                update.package.unwrap().filename,
-                format!("Flash-1.10.0-x64.{ext}")
-            );
+        let arch = std::env::consts::ARCH;
+        for (kind, name) in [
+            (InstallKind::Msi, "Flash-1.10.0-x64.msi".to_string()),
+            (InstallKind::Exe, "Flash-1.10.0-x64.exe".to_string()),
+            (InstallKind::AppImage("/home/u/Flash.AppImage".into()), format!("Flash-1.10.0-{arch}.AppImage")),
+            (InstallKind::Rpm, format!("flash-1.10.0.{arch}.rpm")),
+            (InstallKind::Tarball("/opt/flash/flash".into()), format!("flash-1.10.0-{arch}.tar.gz")),
+        ] {
+            let update = parse_release(release("v1.10.0"), "1.9.9", kind).unwrap().unwrap();
+            assert_eq!(update.package.unwrap().filename, name);
         }
-        assert!(
-            parse_release(release("v1.10.0"), "1.10.0", true)
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            parse_release(release("v1.10.0"), "2.0.0", true)
-                .unwrap()
-                .is_none()
-        );
-        assert!(parse_release(release("v1.10.0/other"), "1.9.9", true).is_err());
+        assert_eq!(asset_name(&InstallKind::Deb, "1.2.0", "x86_64").as_deref(), Some("flash_1.2.0_amd64.deb"));
+        assert_eq!(asset_name(&InstallKind::Deb, "1.2.0", "aarch64").as_deref(), Some("flash_1.2.0_arm64.deb"));
+        assert!(parse_release(release("v1.10.0"), "1.10.0", InstallKind::Msi).unwrap().is_none());
+        assert!(parse_release(release("v1.10.0"), "2.0.0", InstallKind::Msi).unwrap().is_none());
+        assert!(parse_release(release("v1.10.0/other"), "1.9.9", InstallKind::Msi).is_err());
+        // Distribution, Flatpak and Nix installs are told to use their package manager.
+        let managed = parse_release(release("v1.10.0"), "1.9.9", InstallKind::Managed("Update Flash with your package manager.")).unwrap().unwrap();
+        assert!(!managed.can_install());
+        assert_eq!(managed.manual_note(), "Update Flash with your package manager.");
     }
 
     #[test]
     fn skips_prereleases_and_requires_a_digest_for_in_app_install() {
         let mut preview = release("v1.10.0");
         preview.prerelease = true;
-        assert!(parse_release(preview, "1.0.0", true).unwrap().is_none());
+        assert!(parse_release(preview, "1.0.0", InstallKind::Msi).unwrap().is_none());
         let mut missing_digest = release("v1.10.0");
         missing_digest.assets[1].digest = None;
-        assert!(
-            !parse_release(missing_digest, "1.0.0", true)
-                .unwrap()
-                .unwrap()
-                .can_install()
-        );
+        assert!(!parse_release(missing_digest, "1.0.0", InstallKind::Msi).unwrap().unwrap().can_install());
     }
 
     /// Talks to GitHub: `cargo test --lib live_release -- --ignored --nocapture`
@@ -406,7 +332,7 @@ mod tests {
     fn live_release() {
         let response = agent(15).get(LATEST).set("Accept", "application/vnd.github+json").call().unwrap();
         let release: Release = serde_json::from_reader(response.into_reader()).unwrap();
-        let update = parse_release(release, "0.9.0", false).unwrap().expect("a release newer than 0.9.0");
+        let update = parse_release(release, "0.9.0", InstallKind::Exe).unwrap().expect("a release newer than 0.9.0");
         let package = update.package.expect("an exe with a published digest");
         let response = asset_response(&agent(120), &package.url).unwrap();
         verify_download(response.into_reader(), std::io::sink(), package.size, &package.digest).unwrap();

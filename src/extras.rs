@@ -1,7 +1,6 @@
 //! Saved state (hidden updates, install history), the weekly scheduled scan, driver
 //! rollback, startup apps, BIOS and GPU driver checks, and the health report.
-use crate::{Device, Update, health, ps, rows, run_hidden, whea};
-use base64::Engine;
+use crate::{Device, Update, health, whea};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -17,6 +16,10 @@ pub struct Change {
     pub new_inf: String,
     pub backup: String, // folder holding the exported old driver, if any
     pub undone: bool,
+    /// Linux: how to undo it ("pkg:<name>=<old version>", "fw:<device id>=<old version>" or
+    /// "mod:<module>"). Empty on Windows, which undoes with `backup` and `new_inf`.
+    #[serde(default)]
+    pub undo: String,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -26,7 +29,7 @@ pub struct State {
 }
 
 pub fn data_dir() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("Flash")
+    crate::platform::data_dir()
 }
 
 pub fn load() -> State {
@@ -71,51 +74,21 @@ pub fn is_oem(inf: &str) -> bool {
 
 // ---------- 1. Weekly scheduled scan ----------
 
-const TASK: &str = r"Flash\Weekly scan";
-
 pub fn schedule_enabled() -> bool {
-    std::process::Command::new("schtasks").args(["/Query", "/TN", TASK]).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success())
+    crate::platform::schedule_enabled()
 }
 
-/// Turns the weekly background scan (Sundays at noon) on or off in Task Scheduler.
+/// Turns the weekly background scan (Sundays at noon) on or off: Task Scheduler on
+/// Windows, a systemd user timer on Linux.
 pub fn set_schedule(on: bool) -> Result<(), String> {
-    let out = if on {
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let action = format!("\"{}\" --scheduled", exe.display());
-        run_hidden("schtasks", &["/Create", "/F", "/SC", "WEEKLY", "/D", "SUN", "/ST", "12:00", "/RL", "HIGHEST", "/TN", TASK, "/TR", &action])
-    } else {
-        run_hidden("schtasks", &["/Delete", "/F", "/TN", TASK])
-    };
-    if out.contains("SUCCESS") { Ok(()) } else { Err(out.trim().to_string()) }
+    crate::platform::set_schedule(on)
 }
 
 // ---------- 2. Rollback history ----------
 
-/// Saves the driver a device uses now, so an install can be undone. Returns the backup folder.
-pub fn backup_driver(inf: &str, stamp: u64) -> Option<String> {
-    if !is_oem(inf) {
-        return None; // built into Windows: always still on the PC
-    }
-    let dir = data_dir().join("backups").join(stamp.to_string()).join(inf);
-    std::fs::create_dir_all(&dir).ok()?;
-    let out = run_hidden("pnputil", &["/export-driver", inf, &dir.to_string_lossy()]);
-    out.to_lowercase().contains("success").then(|| dir.to_string_lossy().into_owned())
-}
-
-/// Undoes a change: re-adds the saved old driver and removes the new one, so Windows
-/// falls back to the old driver.
-pub fn rollback(c: &Change) -> Result<String, String> {
-    if !is_oem(&c.new_inf) {
-        return Err("The new driver is one of Windows' own, so it can't be removed. Use Device Manager's Roll Back Driver instead.".into());
-    }
-    let mut log = String::new();
-    if !c.backup.is_empty() {
-        log += &run_hidden("pnputil", &["/add-driver", &format!("{}\\*.inf", c.backup), "/subdirs"]);
-    }
-    let out = run_hidden("pnputil", &["/delete-driver", &c.new_inf, "/uninstall", "/force"]);
-    log += &out;
-    run_hidden("pnputil", &["/scan-devices"]);
-    if out.to_lowercase().contains("deleted successfully") { Ok(log) } else { Err(log) }
+/// Whether Flash can undo this change itself.
+pub fn can_undo(c: &Change) -> bool {
+    crate::platform::can_undo(c)
 }
 
 // ---------- 6. Startup apps ----------
@@ -126,58 +99,17 @@ pub struct StartupApp {
     pub command: String,
     pub location: String,
     pub enabled: bool,
-    pub delay_ms: Option<u64>, // worst boot slowdown Windows recorded for it
+    pub delay_ms: Option<u64>, // worst boot slowdown the system recorded for it
 }
 
-// StartupApproved values: first byte even = enabled, odd = disabled (Task Manager's format).
-// Diagnostics-Performance event 101 records apps that slowed down boot.
-const STARTUP: &str = r#"
-$ErrorActionPreference = 'SilentlyContinue'
-$base = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\'
-$ok = @{}
-foreach ($k in 'HKCU:\','HKLM:\') { foreach ($s in 'Run','Run32','StartupFolder') {
-  $p = Get-ItemProperty ($k + $base + $s)
-  if ($p) { $p.PSObject.Properties | Where-Object { $_.Value -is [byte[]] } | ForEach-Object { $ok[$_.Name.ToLower()] = ($_.Value[0] % 2) -eq 0 } }
-} }
-$slow = @{}
-Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Diagnostics-Performance/Operational'; Id=101} -MaxEvents 300 | ForEach-Object {
-  if ($_.Message -match 'File Name\s*:\s*(\S+)' ) { $f = $Matches[1].ToLower()
-    if ($_.Message -match 'Degradation Time\s*:\s*(\d+)') { $ms = [int64]$Matches[1]; if ($ms -gt $slow[$f]) { $slow[$f] = $ms } } }
-}
-Get-CimInstance Win32_StartupCommand | ForEach-Object {
-  $n = $_.Name.ToLower(); $e = $ok[$n]; if ($e -eq $null) { $e = $ok[$n + '.lnk'] }; if ($e -eq $null) { $e = $true }
-  $d = ''; foreach ($f in $slow.Keys) { if ($_.Command.ToLower().Contains($f)) { $d = $slow[$f] } }
-  "$($_.Name)`t$($_.Command)`t$($_.Location)`t$([int]$e)`t$d"
-}
-"#;
-
+/// Programs that start when you sign in, with whether each is on.
 pub fn startup_apps() -> Vec<StartupApp> {
-    let (out, _) = ps(STARTUP);
-    rows(&out, 5)
-        .into_iter()
-        .map(|r| StartupApp { name: r[0].clone(), command: r[1].clone(), location: r[2].clone(), enabled: r[3] == "1", delay_ms: r[4].parse().ok() })
-        .collect()
+    crate::platform::startup_apps()
 }
 
-/// Turns a startup app on or off the same way Task Manager does.
+/// Turns a startup app on or off the way the system's own startup settings do.
 pub fn set_startup(app: &StartupApp, enabled: bool) -> Result<(), String> {
-    let loc = app.location.to_lowercase();
-    let (hive, sub, value) = if loc.contains("startup") {
-        (if loc.contains("common") { "HKLM:" } else { "HKCU:" }, "StartupFolder", format!("{}.lnk", app.name))
-    } else {
-        (if loc.starts_with("hklm") { "HKLM:" } else { "HKCU:" }, if loc.contains("wow6432") { "Run32" } else { "Run" }, app.name.clone())
-    };
-    // The value name comes from the registry, so it travels base64-encoded, never as script text.
-    let name = base64::engine::general_purpose::STANDARD.encode(value.as_bytes());
-    let script = format!(
-        "$k = '{hive}\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\{sub}'\n\
-         if (-not (Test-Path $k)) {{ New-Item $k -Force | Out-Null }}\n\
-         $n = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{name}'))\n\
-         New-ItemProperty -Path $k -Name $n -PropertyType Binary -Value ([byte[]]({flag},0,0,0,0,0,0,0,0,0,0,0)) -Force -ErrorAction Stop | Out-Null",
-        flag = if enabled { 2 } else { 3 }
-    );
-    let (_, err) = ps(&script);
-    if err.trim().is_empty() { Ok(()) } else { Err(err.trim().to_string()) }
+    crate::platform::set_startup(app, enabled)
 }
 
 // ---------- 7. BIOS ----------
@@ -244,13 +176,14 @@ pub fn report_html(r: &health::Report, devices: &[Device], updates: &[Update], b
         let (ok, text) = health::disk_verdict(d);
         h += &format!("<tr><td>{}</td><td>{} {}</td><td>{}</td><td>{}</td><td class={}>{}</td></tr>", esc(&d.name), esc(&d.bus), esc(&d.media), d.temp_c.map_or("-".into(), |t| format!("{t} °C")), d.wear_pct.map_or("-".into(), |w| format!("{w}%")), if ok { "ok" } else { "bad" }, esc(&text));
     }
-    h += &format!("</table><h2>Last 30 days</h2><p>{} hardware errors, {} blue screens, {} unexpected shutdowns.</p>", r.hardware_errors, r.crashes, r.unexpected_shutdowns);
+    h += &format!("</table><h2>Last 30 days</h2><p>{} hardware errors, {} {}, {} unexpected shutdowns.</p>", r.hardware_errors, r.crashes, crate::os!("blue screens", "kernel panics"), r.unexpected_shutdowns);
     if !r.whea.is_empty() {
         let ctx = r.whea_context();
         h += "<h2>Hardware errors (90 days)</h2>";
         for g in &r.whea {
             let a = whea::explain(g, &ctx);
-            h += &format!("<h3>{} · {} times</h3><p>Event {} · {} · {} · {} · {} to {}</p><p>{}</p><ol>", esc(&a.title), g.count, g.id, esc(&g.component), esc(&g.source), esc(&g.error_type), esc(&g.first), esc(&g.last), esc(&a.meaning));
+            let event = if g.id == 0 { String::new() } else { format!("Event {} · ", g.id) };
+            h += &format!("<h3>{} · {} times</h3><p>{event}{} · {} · {} · {} to {}</p><p>{}</p><ol>", esc(&a.title), g.count, esc(&g.component), esc(&g.source), esc(&g.error_type), esc(&g.first), esc(&g.last), esc(&a.meaning));
             for f in &a.fixes {
                 h += &format!("<li>{}</li>", esc(f));
             }
@@ -291,7 +224,7 @@ mod tests {
         assert!(is_oem("oem12.inf") && !is_oem("usbccgp.inf"));
         assert!(bios_page("ASUSTeK COMPUTER INC.", "PRIME B550M-A WIFI II").contains("PRIME%20B550M-A%20WIFI%20II/helpdesk_bios"));
         assert_eq!(esc("<a&\">"), "&lt;a&amp;&quot;&gt;");
-        let u = Update { source: crate::Source::Catalog, key: "k".into(), title: "t".into(), version: "1.2".into(), date: String::new(), size: String::new(), device: Some("PCI\\X".into()), hwid: "h".into(), vendor_swap: false };
+        let u = Update { source: crate::Source::Catalog, key: "k".into(), title: "t".into(), version: "1.2".into(), date: String::new(), size: String::new(), device: Some("PCI\\X".into()), hwid: "h".into(), vendor_swap: false, installed: String::new() };
         assert_eq!(hide_key(&u), "PCI\\X|1.2");
         let html = report_html(&health::Report::default(), &[], &[u], &[]);
         assert!(html.contains("Driver updates available (1)"));
