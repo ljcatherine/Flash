@@ -118,6 +118,8 @@ pub struct Context {
     pub cpu: Cpu,
     /// Some(false): memory runs at its default (non-XMP) speed. Some(true): overclocked/XMP.
     pub ram_overclocked: Option<bool>,
+    /// Exact CPU family, so family-specific fixes only show where they apply.
+    pub arch: crate::hwkb::CpuArch,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -371,6 +373,15 @@ pub fn explain(g: &Group, ctx: &Context) -> Advice {
         },
     };
 
+    // Family-specific advice only where it applies.
+    if !ctx.arch.is_am4() {
+        a.fixes.retain(|f| !f.contains("Typical Current Idle"));
+        a.causes.retain(|c| !c.contains("Ryzen 5000"));
+    }
+    if ctx.arch != crate::hwkb::CpuArch::IntelRaptor {
+        a.fixes.retain(|f| !f.contains("0x12B"));
+        a.causes.retain(|c| !c.contains("13th/14th"));
+    }
     // All repeats on one CPU thread point at one weaker core.
     let cpu_kind = matches!(classify(g), Kind::CpuCache | Kind::CpuTlb | Kind::CpuBus | Kind::CpuTimer | Kind::CpuInternal | Kind::CpuOther);
     if cpu_kind && g.count > 1 && g.apic.len() == 1 {
@@ -416,7 +427,7 @@ mod tests {
     #[test]
     #[ignore]
     fn live_log() {
-        let ctx = Context { cpu: Cpu::Amd, ram_overclocked: Some(false) };
+        let ctx = Context { cpu: Cpu::Amd, ram_overclocked: Some(false), arch: crate::hwkb::CpuArch::AmdZen3 };
         for g in group(&read(90)) {
             let a = explain(&g, &ctx);
             println!("{} x{} id={} fatal={} [{} | {} | {}] dev={} apic={:?} {}..{}\n  => {} | first fix: {}", a.title, g.count, g.id, g.fatal, g.component, g.source, g.error_type, g.device, g.apic, g.first, g.last, a.meaning, a.fixes[0]);
@@ -425,7 +436,7 @@ mod tests {
 
     #[test]
     fn explains_by_kind_and_context() {
-        let amd = Context { cpu: Cpu::Amd, ram_overclocked: Some(false) };
+        let amd = Context { cpu: Cpu::Amd, ram_overclocked: Some(false), arch: crate::hwkb::CpuArch::AmdZen3 };
         let gs = group(&[ev("a", 18, MCE), ev("b", 18, MCE), ev("c", 46, MEM), ev("d", 17, PCIE)]);
         let bus = explain(&gs[0], &amd);
         assert_eq!(classify(&gs[0]), Kind::CpuBus);
@@ -437,8 +448,12 @@ mod tests {
         assert!(mem.note.is_some());
         let pcie = gs.iter().find(|g| g.id == 17).unwrap();
         assert_eq!(classify(pcie), Kind::Pcie);
-        let intel = explain(&gs[0], &Context { cpu: Cpu::Intel, ram_overclocked: None });
+        let intel = explain(&gs[0], &Context { cpu: Cpu::Intel, ram_overclocked: None, arch: crate::hwkb::CpuArch::IntelRaptor });
         assert!(!intel.title.contains("Infinity"));
+        let zen4 = explain(&gs[0], &Context { cpu: Cpu::Amd, ram_overclocked: None, arch: crate::hwkb::CpuArch::AmdZen4 });
+        assert!(!zen4.fixes.iter().any(|f| f.contains("Typical Current Idle"))); // AM4-only fix
+        let alder = explain(&Group { component: "Processor Core".into(), error_type: "Cache Hierarchy Error".into(), ..Default::default() }, &Context { cpu: Cpu::Intel, ram_overclocked: None, arch: crate::hwkb::CpuArch::IntelAlder });
+        assert!(!alder.fixes.iter().any(|f| f.contains("0x12B"))); // Raptor-only fix
         // Every kind has advice.
         for (comp, src, ty) in [("Processor Core", "Corrected Machine Check", "Cache Hierarchy Error"), ("", "Non-Maskable Interrupt", ""), ("Unknown", "Generic", ""), ("Processor Core", "Machine Check Exception", "Internal Timer Error")] {
             let g = Group { component: comp.into(), source: src.into(), error_type: ty.into(), ..Default::default() };

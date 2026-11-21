@@ -46,7 +46,9 @@ pub struct Monitor {
     pub gpu_seen: bool, // GPU counters answered at least once
     pub gpu_by_pid: HashMap<u32, f32>,
     pub gpu_total: f32,
-    pub startup: Option<Vec<(String, String, String)>>, // name, command, where
+    pub startup: Option<Vec<crate::extras::StartupApp>>,
+    pub temps: Vec<(String, f32)>, // sensor, deg C
+    pub fans: Vec<(String, f32)>,  // fan, %
     run_id: u64,
 }
 
@@ -158,6 +160,8 @@ pub fn start(m: &SharedMonitor, repaint: impl Fn() + Send + Sync + 'static) {
         sys.refresh_cpu_usage();
         sys.refresh_processes_specifics(ProcessesToUpdate::All, true, kind);
         let mut last = Instant::now();
+        let mut comps = sysinfo::Components::new_with_refreshed_list();
+        let mut tick = 0u32;
         loop {
             std::thread::sleep(Duration::from_millis(1000));
             if !alive(&sm, id) {
@@ -192,7 +196,31 @@ pub fn start(m: &SharedMonitor, repaint: impl Fn() + Send + Sync + 'static) {
             }
             let (down, up) = nets.iter().fold((0u64, 0u64), |(d, u), (_, n)| (d + n.received(), u + n.transmitted()));
 
+            // Temperatures every 3 s: ACPI sensors on any PC, plus nvidia-smi on NVIDIA cards.
+            tick += 1;
+            let sensors = (tick % 3 == 1).then(|| {
+                comps.refresh(true);
+                let mut temps: Vec<(String, f32)> = comps.list().iter().filter_map(|c| c.temperature().filter(|t| *t > 0.0 && *t < 150.0).map(|t| (c.label().to_string(), t))).collect();
+                let mut fans = Vec::new();
+                let smi = crate::run_hidden("nvidia-smi", &["--query-gpu=name,temperature.gpu,fan.speed", "--format=csv,noheader,nounits"]);
+                for line in smi.lines() {
+                    let p: Vec<&str> = line.split(',').map(str::trim).collect();
+                    if p.len() == 3 {
+                        if let Ok(t) = p[1].parse::<f32>() {
+                            temps.push((format!("{} (GPU)", p[0]), t));
+                        }
+                        if let Ok(f) = p[2].parse::<f32>() {
+                            fans.push((format!("{} fan", p[0]), f));
+                        }
+                    }
+                }
+                (temps, fans)
+            });
             let mut g = sm.lock().unwrap();
+            if let Some((t, f)) = sensors {
+                g.temps = t;
+                g.fans = f;
+            }
             g.cores = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
             g.mem_total = sys.total_memory();
             g.mem_used = sys.used_memory();

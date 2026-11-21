@@ -1,6 +1,6 @@
 [package]
 name = "flash"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
 description = "Flash: Windows driver updater and PC health tool"
 repository = "https://github.com/ljcatherine/Flash"
@@ -16,7 +16,10 @@ ring = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Registry", "Win32_System_SystemInformation", "Win32_UI_Shell"] }
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Registry", "Win32_System_SystemInformation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+tray-icon = "0.26.1"
+tauri-winrt-notification = "0.8.1"
+raw-window-handle = "0.6"
 
 # The bin embeds a requireAdministrator manifest, so its (empty) test harness can't start unelevated.
 [[bin]]

@@ -38,24 +38,30 @@ pub struct Report {
     pub hardware_errors: u32,      // WHEA-Logger events
     pub unexpected_shutdowns: u32, // Kernel-Power 41
     pub crashes: u32,              // blue screens (BugCheck 1001)
+    pub display_resets: u32,       // 'display driver stopped responding' (Display 4101), any GPU vendor
     pub ram_part: String,          // memory module part number
     pub ram_running: u32,          // MT/s the memory actually runs at
     pub whea: Vec<crate::whea::Group>, // hardware errors from the last 90 days, grouped
+    pub gpu_latest: Option<(String, String, String)>, // newest NVIDIA Game Ready driver: version, date, URL
 }
 
 impl Report {
+    pub fn cpu_name(&self) -> String {
+        self.system.iter().find(|(k, _)| k == "Processor").map_or(String::new(), |(_, v)| v.clone())
+    }
+
     /// What the WHEA advice needs to know about this PC.
     pub fn whea_context(&self) -> crate::whea::Context {
-        let cpu = self.system.iter().find(|(k, _)| k == "Processor").map_or("", |(_, v)| v.as_str()).to_lowercase();
-        let cpu = if cpu.contains("amd") || cpu.contains("ryzen") {
+        let arch = crate::hwkb::cpu_arch(&self.cpu_name());
+        let cpu = if arch.is_amd() {
             crate::whea::Cpu::Amd
-        } else if cpu.contains("intel") {
+        } else if arch.is_intel() {
             crate::whea::Cpu::Intel
         } else {
             crate::whea::Cpu::Other
         };
         let ram_overclocked = rated_speed(&self.ram_part).filter(|_| self.ram_running > 0).map(|rated| self.ram_running + 200 >= rated);
-        crate::whea::Context { cpu, ram_overclocked }
+        crate::whea::Context { cpu, ram_overclocked, arch }
     }
 }
 
@@ -89,7 +95,8 @@ $since = (Get-Date).AddDays(-30)
 $whea = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WHEA-Logger'; StartTime=$since}).Count
 $power = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-Power'; Id=41; StartTime=$since}).Count
 $bsod = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WER-SystemErrorReporting'; Id=1001; StartTime=$since}).Count
-"EVT`t$whea`t$power`t$bsod"
+$tdr = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Display'; Id=4101; StartTime=$since}).Count
+"EVT`t$whea`t$power`t$bsod`t$tdr"
 "#;
 
 /// A counter of 0 usually means the drive doesn't report it.
@@ -125,6 +132,7 @@ pub fn parse(out: &str) -> Report {
                 r.hardware_errors = row[1].parse().unwrap_or(0);
                 r.unexpected_shutdowns = row[2].parse().unwrap_or(0);
                 r.crashes = row[3].parse().unwrap_or(0);
+                r.display_resets = row[4].parse().unwrap_or(0);
             }
             _ => {}
         }
@@ -137,6 +145,9 @@ pub fn read() -> Result<Report, String> {
     let (out, err) = ps(SCRIPT);
     let mut r = parse(&out);
     r.whea = crate::whea::group(&crate::whea::read(90));
+    if r.gpus.iter().any(|(n, _)| crate::hwkb::gpu_kind(n) == crate::hwkb::GpuKind::Nvidia) {
+        r.gpu_latest = crate::extras::latest_nvidia();
+    }
     if r.system.is_empty() { Err(if err.trim().is_empty() { "No data returned".into() } else { err }) } else { Ok(r) }
 }
 

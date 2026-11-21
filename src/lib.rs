@@ -8,11 +8,14 @@ pub mod storage;
 pub mod whea;
 pub mod inf;
 pub mod app_update;
+pub mod extras;
+pub mod hwkb;
 
 use std::collections::HashMap;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 const NO_WINDOW: u32 = 0x0800_0000; // CREATE_NO_WINDOW: no console flashes from the GUI
@@ -166,18 +169,52 @@ pub fn run_hidden(program: &str, args: &[&str]) -> String {
     }
 }
 
+static SCANNING: AtomicBool = AtomicBool::new(false);
+static STOP: AtomicBool = AtomicBool::new(false);
+
+/// Asks a running scan to stop. Ignored outside scans, so an install is never cut off.
+pub fn stop_scan() {
+    if SCANNING.load(Ordering::SeqCst) {
+        STOP.store(true, Ordering::SeqCst);
+    }
+}
+
+pub fn is_scanning() -> bool {
+    SCANNING.load(Ordering::SeqCst)
+}
+
+fn stopping() -> bool {
+    SCANNING.load(Ordering::SeqCst) && STOP.load(Ordering::SeqCst)
+}
+
 /// Runs a PowerShell script from a temp file (avoids command-line quoting issues).
-/// Returns (stdout, stderr).
+/// Returns (stdout, stderr). During a scan, a stop request kills the script at once.
 pub fn ps(script: &str) -> (String, String) {
     let path = std::env::temp_dir().join(format!("flash-{}-{:?}.ps1", std::process::id(), std::thread::current().id()));
     if let Err(e) = std::fs::write(&path, format!("[Console]::OutputEncoding=[Text.Encoding]::UTF8\n{script}")) {
         return (String::new(), format!("cannot write temp script: {e}"));
     }
-    let out = Command::new("powershell")
+    let child = Command::new("powershell")
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
         .arg(&path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .creation_flags(NO_WINDOW)
-        .output();
+        .spawn();
+    let out = child.and_then(|child| {
+        let pid = child.id().to_string();
+        // Read output on another thread so a stop can kill the process meanwhile.
+        let waiter = std::thread::spawn(move || child.wait_with_output());
+        let mut killed = false;
+        while !waiter.is_finished() {
+            if !killed && stopping() {
+                run_hidden("taskkill", &["/PID", &pid, "/T", "/F"]);
+                killed = true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        waiter.join().unwrap_or_else(|_| Err(std::io::Error::other("PowerShell reader panicked")))
+    });
     std::fs::remove_file(&path).ok();
     match out {
         Ok(o) => (String::from_utf8_lossy(&o.stdout).into_owned(), String::from_utf8_lossy(&o.stderr).into_owned()),
@@ -398,7 +435,7 @@ fn catalog_updates(d: &Shared, devices: &[Device], win11: bool) -> Vec<Update> {
             .chunks(queries.len().div_ceil(6).max(1))
             .map(|chunk| {
                 let agent = &agent;
-                s.spawn(move || chunk.iter().map(|q| (q.clone(), catalog::search(agent, q))).collect::<Vec<_>>())
+                s.spawn(move || chunk.iter().take_while(|_| !stopping()).map(|q| (q.clone(), catalog::search(agent, q))).collect::<Vec<_>>())
             })
             .collect();
         handles.into_iter().flat_map(|h| h.join().unwrap_or_default()).collect()
@@ -478,10 +515,33 @@ fn inf_updates(d: &Shared, devices: &[Device], dir: &str, src: Source) -> Vec<Up
 }
 
 pub fn scan(d: &Shared) {
+    struct Scanning;
+    impl Drop for Scanning {
+        fn drop(&mut self) {
+            SCANNING.store(false, Ordering::SeqCst);
+        }
+    }
+    STOP.store(false, Ordering::SeqCst);
+    SCANNING.store(true, Ordering::SeqCst);
+    let _scanning = Scanning;
+    let stopped = || {
+        let s = stopping();
+        if s {
+            status(d, "Scan stopped.");
+        }
+        s
+    };
+
     status(d, "Rescanning hardware...");
     run_hidden("pnputil", &["/scan-devices"]);
+    if stopped() {
+        return;
+    }
     status(d, "Reading devices...");
     let (out, err) = ps(DEVICES);
+    if stopped() {
+        return;
+    }
     if !err.trim().is_empty() {
         log(d, &format!("Error: {}", err.trim()));
     }
@@ -511,6 +571,9 @@ pub fn scan(d: &Shared) {
         let local = dir.map(|f| s.spawn(move || inf_updates(d, devs, f, Source::Folder)));
         [wu, cat, store, local].into_iter().flatten().flat_map(|h| h.join().unwrap_or_default()).collect()
     });
+    if stopped() {
+        return; // keep the previous update list rather than a half-checked one
+    }
     if folder.is_none() {
         source_status(d, Source::Folder, "No folder chosen".into());
     }
@@ -518,6 +581,8 @@ pub fn scan(d: &Shared) {
     // Same driver from several sources: keep the most trusted one (WU first, as pushed).
     let mut seen = std::collections::HashSet::new();
     updates.retain(|u| seen.insert((u.device.clone().unwrap_or_else(|| u.key.clone()), u.version.clone())));
+    let hidden = extras::load().hidden;
+    updates.retain(|u| !hidden.contains(&extras::hide_key(u)));
 
     let n = updates.len();
     let mut g = d.lock().unwrap();
@@ -540,6 +605,13 @@ pub fn install(d: &Shared, updates: &[Update], restore_point: bool) {
         }
     }
     let before: Vec<Device> = d.lock().unwrap().devices.clone();
+    // Save each target device's current driver first, so the change can be undone later.
+    let stamp = extras::now();
+    let backups: std::collections::HashMap<String, String> = updates
+        .iter()
+        .filter_map(|u| before.iter().find(|x| Some(&x.instance) == u.device.as_ref()))
+        .filter_map(|dev| extras::backup_driver(&dev.inf, stamp).map(|b| (dev.instance.clone(), b)))
+        .collect();
 
     let wu: Vec<String> = updates.iter().filter(|u| u.source == Source::WindowsUpdate).map(|u| u.key.clone()).collect();
     if !wu.is_empty() {
@@ -591,15 +663,28 @@ pub fn install(d: &Shared, updates: &[Update], restore_point: bool) {
 
     // Report what actually changed: pnputil can succeed without switching the device's driver.
     let after = d.lock().unwrap().devices.clone();
+    let mut state = extras::load();
     for u in updates {
         let Some(id) = &u.device else { continue };
         let (Some(old), Some(new)) = (before.iter().find(|x| &x.instance == id), after.iter().find(|x| &x.instance == id)) else { continue };
         if new.version != old.version {
             log(d, &format!("Updated {}: {} -> {}", new.name, old.version, new.version));
+            state.history.push(extras::Change {
+                time: stamp,
+                device: new.name.clone(),
+                instance: id.clone(),
+                old_version: old.version.clone(),
+                new_version: new.version.clone(),
+                old_inf: old.inf.clone(),
+                new_inf: new.inf.clone(),
+                backup: backups.get(id).cloned().unwrap_or_default(),
+                undone: false,
+            });
         } else {
             log(d, &format!("Not changed: {} is still on {}. Windows kept the current driver as the better match.", new.name, new.version));
         }
     }
+    extras::save(&state);
 }
 
 /// Asks for a folder with the Windows folder picker. Titles are fixed strings, never user input.
@@ -650,6 +735,25 @@ mod tests {
     }
 
     #[test]
+    fn stop_kills_a_running_scan_query_only_during_scans() {
+        stop_scan(); // not scanning: must be ignored
+        assert!(!STOP.load(Ordering::SeqCst));
+        SCANNING.store(true, Ordering::SeqCst);
+        let stopper = std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(800));
+            stop_scan();
+        });
+        let start = std::time::Instant::now();
+        let (out, _) = ps("Start-Sleep -Seconds 30; 'finished'");
+        let took = start.elapsed();
+        stopper.join().unwrap();
+        SCANNING.store(false, Ordering::SeqCst);
+        STOP.store(false, Ordering::SeqCst);
+        assert!(!out.contains("finished"));
+        assert!(took < std::time::Duration::from_secs(10), "stop took {took:?}");
+    }
+
+    #[test]
     fn purposes() {
         assert_eq!(purpose("AudioEndpoint"), "Audio");
         assert_eq!(purpose("HIDClass"), "Input");
@@ -674,4 +778,21 @@ mod tests {
         assert_eq!(upgrade(&inbox, "2026-02-26", "1.1.84.7627", "Logitech USB Driver Update"), Some(true));
         assert_eq!(upgrade(&Device::default(), "2000-01-01", "1.0", "x"), Some(false));
     }
+}
+
+/// Undoes one recorded driver change, then rescans.
+pub fn undo_change(d: &Shared, index: usize) {
+    let mut state = extras::load();
+    let Some(c) = state.history.get(index).cloned() else { return };
+    status(d, &format!("Rolling back {}...", c.device));
+    match extras::rollback(&c) {
+        Ok(out) => {
+            log(d, &out);
+            state.history[index].undone = true;
+            extras::save(&state);
+            log(d, &format!("Rolled back {} to {}.", c.device, c.old_version));
+        }
+        Err(e) => log(d, &format!("Couldn't roll back {}: {}", c.device, e.trim())),
+    }
+    scan(d);
 }

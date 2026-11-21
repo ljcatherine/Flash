@@ -25,7 +25,42 @@ pub struct Sys {
     pub junk_busy: bool,
     pub cleaning: Option<String>,
     pub clean_report: Vec<(bool, String)>,
+    pub stress: Option<Stress>,
 }
+
+pub struct Stress {
+    pub minutes: u32,
+    pub started: std::time::Instant,
+    pub cpu: Vec<f64>,
+    pub mem: Vec<f64>,
+    pub gpu: Vec<f64>,
+    pub result: Option<String>,
+}
+
+/// How much scores fell from the first runs to the last ones, in percent.
+fn drop_pct(v: &[f64]) -> f64 {
+    if v.len() < 4 {
+        return 0.0;
+    }
+    let first = (v[0] + v[1]) / 2.0;
+    let last = (v[v.len() - 1] + v[v.len() - 2]) / 2.0;
+    (1.0 - last / first) * 100.0
+}
+
+fn stress_summary(st: &Stress, new_errors: usize) -> String {
+    let worst = drop_pct(&st.cpu).max(drop_pct(&st.gpu)).max(drop_pct(&st.mem));
+    let mut s = format!("Finished {} CPU, {} memory and {} GPU runs. Scores fell by at most {:.0}% from start to end.", st.cpu.len(), st.mem.len(), st.gpu.len(), worst.max(0.0));
+    if worst > 10.0 {
+        s += " A drop over 10% usually means the PC is heating up and slowing down: check cooling.";
+    }
+    if new_errors > 0 {
+        s += &format!(" {new_errors} new hardware error(s) appeared during the test: the system isn't fully stable at these settings.");
+    } else {
+        s += " No new hardware errors: stable.";
+    }
+    s
+}
+
 
 type Shared = Arc<Mutex<Sys>>;
 
@@ -48,6 +83,9 @@ enum Act {
     Start,
     Stop,
     Startup,
+    Stress,
+    StressStop,
+    StartupToggle(flash::extras::StartupApp, bool),
 }
 
 pub struct SysUi {
@@ -61,6 +99,8 @@ pub struct SysUi {
     gpu_queue: std::collections::VecDeque<Test>,
     gpu_run: Option<crate::gpu_bench::GpuRun>,
     gpu_name: String,
+    stress_minutes: u32,
+    stress_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 const PART_COLORS: [Color32; 6] = [
@@ -135,7 +175,7 @@ fn rate(bytes_per_s: f64) -> String {
 
 impl SysUi {
     pub fn new() -> SysUi {
-        SysUi { sys: Shared::default(), mon: SharedMonitor::default(), picked: HashSet::new(), junk_gen_seen: 0, bench_drive: String::new(), confirm_clean: false, app_sort: AppSort::Cpu, gpu_queue: Default::default(), gpu_run: None, gpu_name: String::new() }
+        SysUi { sys: Shared::default(), mon: SharedMonitor::default(), picked: HashSet::new(), junk_gen_seen: 0, bench_drive: String::new(), confirm_clean: false, app_sort: AppSort::Cpu, gpu_queue: Default::default(), gpu_run: None, gpu_name: String::new(), stress_minutes: 10, stress_stop: Default::default() }
     }
 
     pub fn monitor_running(&self) -> bool {
@@ -259,12 +299,52 @@ impl SysUi {
                     monitor::start(&self.mon, move || c.request_repaint());
                 }
                 Act::Stop => monitor::stop(&self.mon),
+                Act::Stress => {
+                    let minutes = self.stress_minutes;
+                    let stop = self.stress_stop.clone();
+                    stop.store(false, std::sync::atomic::Ordering::SeqCst);
+                    self.sys.lock().unwrap().stress = Some(Stress { minutes, started: std::time::Instant::now(), cpu: vec![], mem: vec![], gpu: vec![], result: None });
+                    self.spawn(ctx, move |s, c| {
+                        let before = whea::read(1).len();
+                        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(u64::from(minutes) * 60);
+                        let go = || std::time::Instant::now() < deadline && !stop.load(std::sync::atomic::Ordering::SeqCst);
+                        while go() {
+                            let cpu = bench::cpu_multi();
+                            if let Some(st) = s.lock().unwrap().stress.as_mut() {
+                                st.cpu.push(cpu);
+                            }
+                            c.request_repaint();
+                            if !go() {
+                                break;
+                            }
+                            let mem = bench::memory();
+                            if let Some(st) = s.lock().unwrap().stress.as_mut() {
+                                st.mem.push(mem);
+                            }
+                            c.request_repaint();
+                        }
+                        let new_errors = whea::read(1).len().saturating_sub(before);
+                        if let Some(st) = s.lock().unwrap().stress.as_mut() {
+                            st.result = Some(stress_summary(st, new_errors));
+                        }
+                    });
+                }
+                Act::StressStop => self.stress_stop.store(true, std::sync::atomic::Ordering::SeqCst),
+                Act::StartupToggle(app, on) => {
+                    let m = self.mon.clone();
+                    let c = ctx.clone();
+                    std::thread::spawn(move || {
+                        flash::extras::set_startup(&app, on).ok();
+                        m.lock().unwrap().startup = Some(flash::extras::startup_apps());
+                        c.request_repaint();
+                    });
+                }
                 Act::Startup => {
                     self.mon.lock().unwrap().startup = Some(vec![]);
                     let m = self.mon.clone();
                     let c = ctx.clone();
                     std::thread::spawn(move || {
-                        let list = monitor::startup_apps();
+                        let list = flash::extras::startup_apps();
                         m.lock().unwrap().startup = Some(list);
                         c.request_repaint();
                     });
@@ -277,6 +357,10 @@ impl SysUi {
     pub fn gpu_tick(&mut self, gl: Option<&std::sync::Arc<eframe::glow::Context>>, ctx: &egui::Context) {
         if let (true, Some(gl)) = (self.gpu_name.is_empty(), gl) {
             self.gpu_name = crate::gpu_bench::renderer(gl);
+        }
+        let stressing = self.sys.lock().unwrap().stress.as_ref().is_some_and(|s| s.result.is_none());
+        if stressing && self.gpu_queue.is_empty() && self.gpu_run.is_none() {
+            self.gpu_queue.push_back(Test::GpuCompute); // GPU part of the stress test
         }
         if self.gpu_queue.is_empty() && self.gpu_run.is_none() {
             return;
@@ -310,7 +394,12 @@ impl SysUi {
                 let t = run.test;
                 run.finish(gl);
                 let mut g = self.sys.lock().unwrap();
-                g.bench.insert(t, Ok(score));
+                match g.stress.as_mut().filter(|s| s.result.is_none()) {
+                    Some(st) => st.gpu.push(score),
+                    None => {
+                        g.bench.insert(t, Ok(score));
+                    }
+                }
                 g.bench_running = None;
             }
         }
@@ -319,7 +408,7 @@ impl SysUi {
 
     // ---------------- Device health ----------------
 
-    pub fn health_page(&mut self, ui: &mut Ui, ctx: &egui::Context, devices: &[flash::Device]) {
+    pub fn health_page(&mut self, ui: &mut Ui, ctx: &egui::Context, devices: &[flash::Device], updates: &[flash::Update]) {
         let mut acts = Vec::new();
         {
             let sys = self.sys.clone();
@@ -331,6 +420,11 @@ impl SysUi {
                 acts.push(Act::Drives);
             }
             page_header(ui, "Device health", "How your hardware is doing, and how fast it is.", |ui| {
+                if let Some(Ok(r)) = &g.health {
+                    if ui.button("Export report").on_hover_text("Saves a one-page summary to your Desktop to share when asking for help.").clicked() {
+                        export_report(r, devices, updates, &g.bench);
+                    }
+                }
                 if ui.add_enabled(!g.health_busy, egui::Button::new("Refresh")).clicked() {
                     acts.push(Act::Health);
                 }
@@ -457,6 +551,7 @@ impl SysUi {
             });
         });
 
+        crate::extras_ui::hardware(ui, r);
         section(ui, "Drives", "Health as reported by each drive. Temperature and wear need the drive to report them.");
         card(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -558,6 +653,30 @@ impl SysUi {
             }
         });
         ui.label(RichText::new("Bars compare against a fast current PC. Disk tests write a temporary file to the drive and delete it afterwards.").size(12.0).color(MUTED));
+        section(ui, "Stress test", "Loops the CPU, memory and GPU tests to check stability, and watches for new hardware errors. Run it after changing BIOS settings such as XMP or EXPO.");
+        card(ui, |ui| {
+            ui.set_width(ui.available_width());
+            let running = g.stress.as_ref().is_some_and(|s| s.result.is_none());
+            ui.horizontal(|ui| {
+                if let Some(st) = g.stress.as_ref().filter(|_| running) {
+                    if ui.button("Stop").clicked() {
+                        acts.push(Act::StressStop);
+                    }
+                    ui.spinner();
+                    ui.label(RichText::new(format!("{} of {} min · CPU {} · memory {} · GPU {} runs", st.started.elapsed().as_secs() / 60, st.minutes, st.cpu.len(), st.mem.len(), st.gpu.len())).color(ACCENT));
+                } else {
+                    for m in [10, 20, 30] {
+                        ui.selectable_value(&mut self.stress_minutes, m, format!("{m} min"));
+                    }
+                    if ui.add_enabled(g.bench_running.is_none(), primary("Start stress test")).clicked() {
+                        acts.push(Act::Stress);
+                    }
+                }
+            });
+            if let Some(r) = g.stress.as_ref().and_then(|s| s.result.as_ref()) {
+                ui.add(egui::Label::new(RichText::new(r).color(TEXT)).wrap());
+            }
+        });
     }
 
     // ---------------- Storage ----------------
@@ -856,6 +975,7 @@ impl SysUi {
                         ui.add_space(gap);
                     }
 
+                    crate::extras_ui::temps(ui, &m.temps, &m.fans);
                     // Per-thread load.
                     card(ui, |ui| {
                         ui.set_width(ui.available_width());
@@ -935,13 +1055,16 @@ impl SysUi {
                     ui.set_width(ui.available_width());
                     match &m.startup {
                         Some(list) if !list.is_empty() => {
-                            for (name, cmd, place) in list {
+                            for app in list {
                                 ui.horizontal(|ui| {
-                                    ui.label(RichText::new(name).color(TEXT));
-                                    ui.add(egui::Label::new(RichText::new(cmd).size(12.0).color(MUTED)).truncate());
-                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        ui.label(RichText::new(place).size(12.0).color(MUTED));
-                                    });
+                                    if ui.small_button(if app.enabled { "Disable" } else { "Enable" }).clicked() {
+                                        acts.push(Act::StartupToggle(app.clone(), !app.enabled));
+                                    }
+                                    ui.label(RichText::new(&app.name).color(if app.enabled { TEXT } else { MUTED }));
+                                    if let Some(ms) = app.delay_ms {
+                                        ui.label(RichText::new(format!("slowed boot by up to {:.1} s", ms as f64 / 1000.0)).size(12.0).color(WARN));
+                                    }
+                                    ui.add(egui::Label::new(RichText::new(&app.command).size(12.0).color(MUTED)).truncate());
                                 });
                             }
                         }
@@ -957,5 +1080,17 @@ impl SysUi {
             });
         }
         self.act(ctx, acts);
+    }
+}
+
+/// Writes the health report to the Desktop (or Flash's data folder) and opens it.
+fn export_report(r: &Report, devices: &[flash::Device], updates: &[flash::Update], bench: &HashMap<Test, Result<f64, String>>) {
+    let rows: Vec<(String, String)> = Test::ALL.iter().filter_map(|t| bench.get(t)?.as_ref().ok().map(|v| (t.name().to_string(), format!("{v:.1} {}", t.unit())))).collect();
+    let html = flash::extras::report_html(r, devices, updates, &rows);
+    let name = format!("Flash report {}.html", flash::extras::date(flash::extras::now()));
+    let desktop = std::env::var_os("USERPROFILE").map(PathBuf::from).map(|p| p.join("Desktop"));
+    let path = desktop.filter(|d| d.is_dir()).unwrap_or_else(flash::extras::data_dir).join(name);
+    if std::fs::write(&path, html).is_ok() {
+        flash::run_hidden("cmd", &["/c", "start", "", &path.to_string_lossy()]);
     }
 }

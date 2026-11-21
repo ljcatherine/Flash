@@ -6,6 +6,8 @@ use egui_extras::{Column, TableBuilder};
 mod gpu_bench;
 mod system_ui;
 mod app_update_ui;
+mod tray;
+mod extras_ui;
 
 use flash::{Device, PURPOSES, Shared, Source, Update, backup, check_folder, install, problem_text, purpose, scan};
 use std::collections::{HashMap, HashSet};
@@ -51,6 +53,8 @@ enum Action {
     Install(Vec<Update>, bool),
     Folder,
     Backup,
+    Hide(Vec<Update>),
+    Undo(usize),
 }
 
 struct App {
@@ -71,6 +75,9 @@ struct App {
     toast: Option<(String, f64)>,
     sys: system_ui::SysUi,
     app_update: app_update_ui::AppUpdateUi,
+    tray: tray::Tray,
+    schedule: Option<bool>,
+    schedule_note: String,
     verbose: bool, // sidebar status expanded into live details
 }
 
@@ -80,7 +87,14 @@ impl App {
         d.lock().unwrap().busy = true;
         std::thread::spawn(move || {
             job(&d);
-            d.lock().unwrap().busy = false;
+            let status = {
+                let mut g = d.lock().unwrap();
+                g.busy = false;
+                g.status.clone()
+            };
+            if tray::hidden() {
+                tray::notify_done(&status); // egui isn't drawing while hidden, so tell the user here
+            }
             ctx.request_repaint();
         });
     }
@@ -460,12 +474,30 @@ fn style(ctx: &egui::Context) {
     });
 }
 
+/// Flash's own native window, for hiding and showing it outside egui.
+fn window_handle(frame: &eframe::Frame) -> Option<isize> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match frame.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(w) => Some(w.hwnd.get()),
+        _ => None,
+    }
+}
+
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.sys.gpu_tick(frame.gl(), ctx);
         self.app_update.poll();
         let data = self.data.clone();
         let mut d = data.lock().unwrap();
+        self.tray.tick();
+        // Closing mid-job hides Flash to the notification area instead of killing the job.
+        if ctx.input(|i| i.viewport().close_requested()) && (d.busy || self.sys.update_blocked()) {
+            if let Some(hwnd) = window_handle(frame) {
+                if self.tray.hide(hwnd) {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                }
+            }
+        }
         let now = ctx.input(|i| i.time);
         let t = now as f32;
 
@@ -745,6 +777,11 @@ impl eframe::App for App {
                                 flash::run_hidden("cmd", &["/c", "start", "", "rstrui.exe"]);
                             }
                         });
+                        ui.add_space(6.0);
+                        extras_ui::schedule(ui, &mut self.schedule, &mut self.schedule_note);
+                        if let Some(i) = extras_ui::history(ui, d.busy) {
+                            actions.push(Action::Undo(i));
+                        }
                     }
 
                     Page::Map => {
@@ -786,6 +823,7 @@ impl eframe::App for App {
                             }
                         } else {
                             let mut open: Option<String> = None;
+                            let mut hide: Vec<Update> = Vec::new();
                             TableBuilder::new(ui)
                                 .id_salt("updates")
                                 .striped(true)
@@ -836,12 +874,18 @@ impl eframe::App for App {
                                         });
                                         row.col(|ui| {
                                             ui.label(RichText::new(u.source.name()).color(MUTED));
+                                            if ui.small_button("Hide").on_hover_text("Don't show this update again").clicked() {
+                                                hide.push(u.clone());
+                                            }
                                         });
                                         if row.response().double_clicked() {
                                             open = u.device.clone();
                                         }
                                     });
                                 });
+                            if !hide.is_empty() {
+                                actions.push(Action::Hide(hide));
+                            }
                             if let Some(id) = open {
                                 self.device = Some(id);
                                 self.go(Page::Devices, now);
@@ -1025,7 +1069,7 @@ impl eframe::App for App {
                         }
                     }
 
-                    Page::Health => self.sys.health_page(ui, ctx, &d.devices),
+                    Page::Health => self.sys.health_page(ui, ctx, &d.devices, &d.updates),
                     Page::Storage => self.sys.storage_page(ui, ctx),
                     Page::Monitor => self.sys.monitor_page(ui, ctx, now),
 
@@ -1112,6 +1156,13 @@ impl eframe::App for App {
                 Action::Install(ups, restore) => self.run(ctx, move |d| install(d, &ups, restore)),
                 Action::Folder => self.run(ctx, check_folder),
                 Action::Backup => self.run(ctx, backup),
+                Action::Hide(ups) => {
+                    let mut state = flash::extras::load();
+                    state.hidden.extend(ups.iter().map(flash::extras::hide_key));
+                    flash::extras::save(&state);
+                    self.data.lock().unwrap().updates.retain(|u| !ups.iter().any(|h| h.key == u.key && h.device == u.device));
+                }
+                Action::Undo(i) => self.run(ctx, move |d| flash::undo_change(d, i)),
             }
         }
         let busy = self.data.lock().unwrap().busy || self.sys.update_blocked();
@@ -1119,7 +1170,26 @@ impl eframe::App for App {
     }
 }
 
+/// Weekly background scan (Task Scheduler runs `Flash.exe --scheduled`): no window,
+/// and a notification only if something needs attention.
+fn scheduled_scan() {
+    let d = Shared::default();
+    scan(&d);
+    let (updates, problems) = {
+        let g = d.lock().unwrap();
+        (g.updates.len(), g.devices.iter().filter(|x| x.problem != 0 && x.problem != 22).count())
+    };
+    if updates + problems > 0 {
+        tray::notify_scheduled(&format!("{updates} driver update(s) and {problems} device problem(s). Click to open Flash."));
+        std::thread::sleep(std::time::Duration::from_secs(600)); // keep the notification clickable
+    }
+}
+
 fn main() -> eframe::Result {
+    if std::env::args().any(|a| a == "--scheduled") {
+        scheduled_scan();
+        return Ok(());
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 720.0])
@@ -1151,6 +1221,9 @@ fn main() -> eframe::Result {
                 toast: None,
                 sys: system_ui::SysUi::new(),
                 app_update: app_update_ui::AppUpdateUi::new(&cc.egui_ctx),
+                tray: tray::Tray::new(),
+                schedule: None,
+                schedule_note: String::new(),
                 verbose: false,
             };
             app.run(&cc.egui_ctx, scan); // scan right away on launch
